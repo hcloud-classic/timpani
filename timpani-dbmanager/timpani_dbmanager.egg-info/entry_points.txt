@@ -1,0 +1,3 @@
+[console_scripts]
+framework_db_test = db_test.run:main
+

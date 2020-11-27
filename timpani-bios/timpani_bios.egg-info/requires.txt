@@ -1,0 +1,10 @@
+timpani-framework==0.0.1
+
+[test]
+pylint
+pycodestyle
+pyflakes
+pytest
+mock
+pytest-cov
+coverage

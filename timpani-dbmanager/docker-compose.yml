@@ -1,0 +1,20 @@
+version: '3.1'
+
+services:
+  db:
+    container_name: mariadb
+    image: mariadb:latest
+    restart: always
+    ports:
+      - 13306:3306
+    volumes:
+      - "../docker/mariadb/data/:/var/lib/mysql/"
+      - "../docker/mariadb/config/:/etc/mysql/conf.d/"
+      - "../docker/mariadb/init/:/docker-entrypoint-initdb.d/"
+    environment:
+      MYSQL_DATABASE: testdb
+      MYSQL_USER: teratec
+      MYSQL_PASSWORD : teratec
+      MYSQL_ROOT_PASSWORD: testdb
+      TZ: Asia/Seoul
+

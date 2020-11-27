@@ -1,0 +1,15 @@
+setup.py
+timpani_bios/__init__.py
+timpani_bios/bios_pb2.py
+timpani_bios/bios_pb2_grpc.py
+timpani_bios/constants.py
+timpani_bios/service.py
+timpani_bios/trans.py
+timpani_bios.egg-info/PKG-INFO
+timpani_bios.egg-info/SOURCES.txt
+timpani_bios.egg-info/dependency_links.txt
+timpani_bios.egg-info/requires.txt
+timpani_bios.egg-info/top_level.txt
+timpani_bios.egg-info/zip-safe
+timpani_bios/syscfg/__init__.py
+timpani_bios/syscfg/biosconfig.py

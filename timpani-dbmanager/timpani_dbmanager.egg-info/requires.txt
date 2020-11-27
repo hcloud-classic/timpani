@@ -1,0 +1,13 @@
+timpani-framework==0.0.1
+future>=0.14.0; python_version<"3"
+futures; python_version>="3"
+ujson<=1.35; platform_system!="Windows"
+
+[test]
+pylint
+pycodestyle
+pyflakes
+pytest
+mock
+pytest-cov
+coverage

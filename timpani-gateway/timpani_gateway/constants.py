@@ -1,0 +1,5 @@
+WEB_LISTEN_ADDRESS = "127.0.0.1"
+WEB_LISTEN_PORT = "80"
+
+
+AMQP_CONFIG = {'AMQP_URI':"amqp://localhost:5672"}
