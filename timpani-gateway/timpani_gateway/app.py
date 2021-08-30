@@ -7,7 +7,10 @@ from .config import Config
 from .schema import Schema
 from .rest_api.node import RestNode
 from .rest_api.ipmi import IpmiNode
+from .rest_api.system import SystemAPI
+from .rest_api.sync import SyncAPI
 from .rest_api.log_helper import LogHelper
+from .rest_api.auth import AuthAPI
 
 from .exceptions import InvalidError, InvalidException
 
@@ -45,7 +48,9 @@ def create_app(*config_cls):
     Restful API Setting
     '''
     RestNode(app)
-
+    SystemAPI(app)
+    AuthAPI(app)
+    SyncAPI(app)
 
     return app
 

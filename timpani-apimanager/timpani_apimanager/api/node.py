@@ -8,7 +8,7 @@ logger = logging.getLogger(__name__)
 #
 #     def registerNode(self, data):
 #         logger.info('RegisterNode {}'.format(data))
-#         response = timpani_apimanager.service.ApimanagerService.handler(method='registerNode', msg=data)
+#         response = timpani_base.service.ApimanagerService.handler(method='registerNode', msg=data)
 #         return response
 #
 #

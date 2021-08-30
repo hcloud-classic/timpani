@@ -1,69 +1,3 @@
-# from .filemanager_pb2 import ActionResponse, ResgisterResponse
-# from .filemanager_pb2_grpc import FilemangerServiceStub
-# 
-# from timpani_framework.grpc.entrypoint import Grpc
-# from google.protobuf import json_format
-# import json
-# 
-# grpc = Grpc.implementing(FilemangerServiceStub)
-# 
-# 
-# # ActionRequest
-# # int32 action = 1;
-# # int32 msgid = 2;
-# # string method = 3;
-# # google.protobuf.Struct message = 4;
-# 
-# class FileManagerService:
-#     name = 'filemanager_service'
-# 
-#     @grpc
-#     def action(self, request, context):
-#         print('request : {}'.format(request))
-#         print('action : {}'.format(request.action))
-#         print('msgid : {}'.format(request.msgid))
-#         print('method : {}'.format(request.method))
-#         print('msg : {}'.format(json.loads(request.msg)))
-#         return ActionResponse(
-#             result='success',
-#             msgid=request.msgid,
-#             method=request.method,
-#             msg=request.msg
-#         )
-# 
-#     # @grpc
-#     # def register(self, request, context):
-#     #     return ResgisterResponse()
-
-# import eventlet
-# import errno
-# import time
-# from timpani_framework.runner import run_services
-#
-# def main():
-#     config={}
-#     api = ApiManagerService()
-#
-#     service_runner = run_services(config, api)
-#
-#     while True:
-#         try:
-#             time.sleep(60)
-#         except KeyboardInterrupt:
-#             print()
-#             try:
-#                 service_runner.stop()
-#             except KeyboardInterrupt:
-#                 print()
-#                 service_runner.kill()
-#
-#             else:
-#             # runner.wait completed
-#                 break
-#
-# if __name__=="__main__":
-#     main()
-
 import logging
 import timpani_filemanager.constants
 import os
@@ -121,7 +55,7 @@ class ServiceInit(object):
 
 class FileManager(object):
     init_data = ServiceInit()
-    name = init_data.service_name
+    name = 'filemanager_service'
     node_uuid = init_data.node_uuid
     agent_id = init_data.agent_id
     ip_address = init_data.address
@@ -131,55 +65,50 @@ class FileManager(object):
 
     @rpc
     def check_directory(self, data):
+        logger.info("check_directory : {}".format(data))
         node_uuid = data.get('node_uuid')
-        check_url = "{}/{}".format(self.backup_base, node_uuid)
-        res_data = {'result': '0000', 'resultMsg': 'Success'}
-        try:
-            if not os.path.isdir(check_url):
-                os.makedirs(check_url)
-        except OSError:
-            res_data = {'errcode':'9001', 'errorstr':'Creating directory Failed = {}'.format(check_url)}
+        check_list = data.get('check_dirs')
+        for check_dir in check_list:
+            check_url = "{}".format(check_dir)
+            res_data = {'result': '0000', 'resultMsg': 'Success'}
+            try:
+                if not os.path.isdir(check_url):
+                    os.makedirs(check_url)
+            except OSError:
+                res_data = {'errcode':'9001', 'errorstr':'Creating directory Failed = {}'.format(check_url)}
 
         return res_data
 
 
-        
+    @rpc
+    def check_filesize(self, data):
+        node_uuid = data.get('node_uuid')
+        check_file = data.get('check_file')
+        logger.info('[check_filesize] check_file : {}'.format(check_file))
+        try:
+            stat = os.stat(check_file)
+            f_size = stat.st_size
+        except:
+            f_size = -1
 
-    # @rpc
-    # def scp_app1(self, image_path):
-    #     logger.info("============== SCP APP1 SENDER [WEB] ===========")
-    #     ip = self.config.GetConfig(self.CONFIG_NAME, 'app1_ip')
-    #     port = self.config.GetConfig(self.CONFIG_NAME, 'app1_port')
-    #     user = self.config.GetConfig(self.CONFIG_NAME, 'app1_user')
-    #     password = self.config.GetConfig(self.CONFIG_NAME, 'app1_pass')
-    #
-    #     try:
-    #         ssh = SSHClient()
-    #         ssh.set_missing_host_key_policy(paramiko.AutoAddPolicy())
-    #         ssh.connect(ip, port=port, username=user, password=password)
-    #     except paramiko.AuthenticationException:
-    #         logger.info("Authentication failed, please verify your credentials")
-    #     except paramiko.SSHException as sshException:
-    #         logger.info("Unable to establish SSH Connection : %s" % sshException)
-    #     except paramiko.BadHostKeyException as badHostKeyException:
-    #         logger.info("Unable to verify server's host key : %s" % badHostKeyException)
-    #     except Exception as e:
-    #         logger.info(e.args)
-    #
-    #     src_path_root = self.config.GetConfig(self.CONFIG_NAME, 'src_path_root')
-    #     dest_path_root = self.config.GetConfig(self.CONFIG_NAME, 'dest_path_root')
-    #     image_path_root = self.config.GetConfig(self.CONFIG_NAME, 'image_path_root')
-    #     img_path, file_name = os.path.split(image_path)
-    #     src_path = src_path_root + '/' + image_path_root + image_path
-    #     dest_path = dest_path_root + '/' + image_path_root + img_path
-    #     logger.info(
-    #         "src_path_root : {}\n dest_path_root : {}\n image_path_root : {}\n".format(src_path_root, dest_path_root,
-    #                                                                                    image_path_root))
-    #     logger.info("src_path : {} dest_path : {}".format(src_path, dest_path))
-    #     ssh.exec_command('mkdir -p ' + dest_path)
-    #
-    #     scp = SCPClient(ssh.get_transport())
-    #     scp.put(src_path, recursive=True, remote_path=dest_path)
-    #     scp.close()
-    #     ssh.close()
+        return {'file_size': f_size}
+
+
+    @rpc
+    def check_snapshotImage(self, data):
+        for check_data in data:
+            check_path = check_data.get('image_path')
+
+            if os.path.isfile(check_path):
+                stat = os.stat(check_path)
+                f_size = stat.st_size
+                check_size = int(check_data.get('image_size'))
+                if f_size is check_size:
+                    check_data['is_exist'] = True
+                else:
+                    check_data['is_exist'] = False
+            else:
+                check_data['is_exist'] = False
+
+        return data
 

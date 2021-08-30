@@ -88,9 +88,71 @@ class ZFS(object):
                                "from {pool}\n{e.output}\n")
 
     @staticmethod
+    def geom_list(properties: list = None):
+        call_args = []
+        if properties is None:
+            property_target = "list"
+        target_list = [property_target]
+        command = _Command("disk", call_args,
+                           main_command="geom",
+                           targets=target_list)
+        try:
+            return command.run()
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed to get zfs property '{property_target}' "
+                               "from {pool}\n{e.output}\n")
+
+    @staticmethod
+    def zdb_list():
+        try:
+            return _Command.shell_run('zdb')
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed to get zfs property '{property_target}' "
+                               "from {pool}\n{e.output}\n")
+
+    # return : is_zfs, is_lvm
+    @staticmethod
+    def check_zfs():
+        if platform.system() == 'FreeBDS':
+            return True
+
+        try:
+            out = _Command.shell_run('lsblk -o FSTYPE | grep zfs | wc -l')
+            if int(out) > 0:
+                return True
+            else:
+                return False
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed to get ZFS Type")
+
+    @staticmethod
+    def check_backup_target():
+        if platform.system() == 'FreeBDS':
+            return None
+
+        try:
+            output = _Command.shell_run("lsblk -o KNAME,FSTYPE,MOUNTPOINT -J | awk '!/zfs|swap|squashfs/'")
+            return output
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed to get ZFS Type")
+
+    @staticmethod
+    def check_user_home():
+        if platform.system() == 'FreeBDS':
+            return None
+
+        try:
+            output = _Command.shell_run("tree -d -L 1 -J /home")
+            return output
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError("Failed to get ZFS Type")
+
+
+    @staticmethod
     def zpool_list(target: str = None,
                  scripting: bool = True,
                  parsable: bool = False,
+                 verbose: bool = False,
                  env_variables_override: dict = None) -> str:
         """
         zpool list [-gHLPv] [-o property[,...]] [-T d|u] [pool] ... [interval [count]]
@@ -104,6 +166,9 @@ class ZFS(object):
 
         if parsable:
             call_args.append("-p")
+
+        if verbose:
+            call_args.append("-v")
 
         if target is None:
             targets = []

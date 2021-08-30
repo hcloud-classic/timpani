@@ -3,7 +3,7 @@ from os.path import expanduser
 
 class Constants:
 
-    DIR_HOME = expanduser("/opt/timpani/config")
+    DIR_HOME = expanduser("/home/timpani/config")
     CONFIGURATION_FILE = os.path.join(*(DIR_HOME, "timpani-filemanager.ini"))
 
 RABBITMQ_KEY = "RABBITMQ"
@@ -17,4 +17,4 @@ AGENT_ID = None
 NODE_UUID = None
 SERVICE_IPV4ADDR = None
 CAPABILITY = None
-BASE_STORAGE_URI = "/opt/timpani"
+BASE_STORAGE_URI = "/home/timpani"

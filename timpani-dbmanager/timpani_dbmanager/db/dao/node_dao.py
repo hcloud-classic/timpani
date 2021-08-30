@@ -5,16 +5,96 @@ from datetime import datetime
 
 from .base_dao import BaseDAO
 from .ipmi_dao import IpmiDAO
-from ..models.node import NodeDetail, Node
+from ..models.node import NodeDetail, Node, SyncNode, SyncVolume
 from ..models.ipmi import IpmiConnectInfo
+
+from sqlalchemy.sql import compiler
+from sqlalchemy.dialects import mysql
 logger = logging.getLogger(__name__)
+
+class SyncNodeDAO(BaseDAO):
+    FIELD = ["uuid", "server_uuid", "node_name", "group_id", "group_name", "ipmi_user_id",
+             "ipmi_user_password", "bmc_ip", "bmc_ip_subnet_mask", "bmc_mac_addr", "pxe_mac_addr",
+             "created_at"]
+
+    @staticmethod
+    def SyncNodeUpdate(obj, data, database_session):
+        field_list = SyncNodeDAO.FIELD
+
+        if obj is None:
+            # insert
+            obj = SyncNode()
+            BaseDAO.set_value(obj, field_list, data)
+            BaseDAO.insert(obj, database_session)
+        else:
+            # update
+            BaseDAO.update_value(obj, field_list, data)
+            BaseDAO.update(obj, database_session)
+
+        return obj.id
+
+    @staticmethod
+    def getobj_nodeuuid(uuid, database_session):
+        obj = database_session.query(SyncNode).filter(SyncNode.uuid == uuid).first()
+        if obj is None:
+            return None
+        return obj
+
+    @staticmethod
+    def getobjlist_syncnode(database_session):
+        objlist = database_session.query(SyncNode).all()
+        return objlist
+
+    @staticmethod
+    def SyncNodeDel(obj, database_session):
+        BaseDAO.delete(obj, database_session)
+        return True
+
+
+class SyncVolumeDAO(BaseDAO):
+    FIELD = ["uuid", "name", "server_uuid", "user_uuid", "group_id", "use_type", "size"]
+
+    @staticmethod
+    def SyncVolumeUpdate(obj, data, database_session):
+        field_list = SyncVolumeDAO.FIELD
+
+        if obj is None:
+            # insert
+            obj = SyncVolume()
+            BaseDAO.set_value(obj, field_list, data)
+            BaseDAO.insert(obj, database_session)
+        else:
+            # update
+            BaseDAO.update_value(obj, field_list, data)
+            BaseDAO.update(obj, database_session)
+
+        return obj.id
+
+    @staticmethod
+    def getobj_volumeuuid(uuid, database_session):
+        obj = database_session.query(SyncVolume).filter(SyncVolume.uuid == uuid).first()
+        if obj is None:
+            return None
+        return obj
+
+    @staticmethod
+    def getobjlist_syncvolume(database_session):
+        objlist = database_session.query(SyncVolume).all()
+        return objlist
+
+    @staticmethod
+    def SyncVolumeDel(obj, database_session):
+        BaseDAO.delete(obj, database_session)
+        return True
+
 
 class NodeDAO(BaseDAO):
     @staticmethod
     def resigster_node(data, database_session):
         obj = Node()
+        logger.info('register_node [data] : {}'.format(data))
         query = database_session.query(Node).filter(Node.uuid == data.get('node_uuid')).first()
-
+        logger.info('query data : {}'.format(query))
         if query is None:
             field_list = ["uuid", "parent_uuid", "ischild", "node_detail_id", "system_id"]
             BaseDAO.set_value(obj, field_list, data)
@@ -22,7 +102,7 @@ class NodeDAO(BaseDAO):
             res_id = obj.uuid
         else:
             logger.info("query : {}".format(query))
-            res_id = query.get('uuid')
+            res_id = query.uuid
         return res_id
 
     @staticmethod
@@ -37,6 +117,8 @@ class NodeDAO(BaseDAO):
         #     query = database_session.query(Node).filter(Node.id == node_id).all()
         # elif node_uuid:
         #     query = database_session.query(Node).filter(Node.node_uuid == node_uuid).all()
+        if query is None:
+            return None
         res = query.__dict__
         del res['_sa_instance_state']
 
@@ -46,6 +128,8 @@ class NodeDAO(BaseDAO):
     def update_node(data, database_session):
         field_list = ["uuid", "parent_uuid", "ischild", "node_detail_id", "system_id"]
         obj = database_session.query(Node).filter(Node.uuid == data.get('node_uuid')).first()
+        if obj is None:
+            return None
         BaseDAO.update_value(obj, field_list, data)
         BaseDAO.update(obj, database_session)
         return obj.uuid
@@ -70,16 +154,27 @@ class NodeDetailDAO(BaseDAO):
             BaseDAO.update_value(node, field_list, data)
             BaseDAO.update(node, database_session)
         else:
-            res_id = query.get('id')
+            res_id = query.id
 
         return res_id
 
     @staticmethod
     def get_node_detail_info(data, database_session):
-        query = database_session.query(NodeDetail.node_uuid, NodeDetail.alias, NodeDetail.capability, NodeDetail.note, NodeDetail.register_dt,
-                                       IpmiConnectInfo.ipv4address).\
-                                join(IpmiConnectInfo, IpmiConnectInfo.id == NodeDetail.ipmi_conn_id).all()
-        result_templete = {'node_uuid': None, 'node_name': None, 'node_type': None, 'note': None, 'register_dt': None, 'ipmi_address': None}
+        query = database_session.query(NodeDetail.node_uuid, NodeDetail.alias, NodeDetail.capability, NodeDetail.note,
+                                       NodeDetail.register_dt, IpmiConnectInfo.ipv4address).\
+                                join(Node, Node.uuid == NodeDetail.node_uuid).\
+                                join(IpmiConnectInfo, IpmiConnectInfo.id == NodeDetail.ipmi_conn_id)
+
+        if 'search_kind' in data:
+            search_kind = data.get('search_kind')
+            if search_kind == 1:    # Get Parent Node
+                query = query.filter(NodeDetail.capability.in_(('master', 'storage')))
+            elif search_kind == 2:  # Get Child Node
+                query = query.filter(NodeDetail.capability.in_(('compute', 'leader')))
+                query = query.filter(Node.parent_uuid == data.get('parent_uuid'))
+
+        BaseDAO.debug_sql_print(query=query, func_name='get_node_detail_info')
+        query = query.all()
         field_list = ['node_uuid', 'node_name', 'node_type', 'note', 'register_dt', 'ipmi_address']
         res = []
         if isinstance(query, list):
@@ -110,4 +205,4 @@ class NodeDetailDAO(BaseDAO):
     def get_node_detail(ipmi_connection_id, database_session):
         return database_session.query(NodeDetail)
 
-__all__ =[NodeDAO, NodeDetailDAO]
+__all__ =[SyncNodeDAO, NodeDAO, NodeDetailDAO]

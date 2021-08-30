@@ -5,5 +5,9 @@ from . import system
 from . import bios
 from . import ipmi
 from . import node
+from . import app
+from . import user
+from . import sync
+from . import police
 
 

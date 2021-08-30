@@ -38,6 +38,8 @@ from .api.node import NodeAPI
 from .api.ipmi import IpmiAPI
 from .api.system import SystemAPI
 from .api.bios import BiosAPI
+from .api.user import UserAPI
+from .api.sync import SyncAPI
 
 from timpani_dbmanager.db.db_connect_handler import DBConnectHandler
 from timpani_dbmanager.configuration.configuration_file_reader import ConfigrationFileReader
@@ -64,8 +66,14 @@ class DbmanagerService(object):
     ipmi_api = IpmiAPI()
     system_api = SystemAPI()
     bios_api = BiosAPI()
+    user_api = UserAPI()
+    sync_api = SyncAPI()
 
     print("RUN {}".format(name))
+
+    @rpc
+    def namekocommtest(self, data):
+        return data
 
     @rpc
     def registerNode(self, data):
@@ -129,6 +137,26 @@ class DbmanagerService(object):
     def registerAgent(self, data):
         return self.system_api.registerAgent(data)
 
+    @rpc
+    def SetBackupSrcList(self, data):
+        return self.system_api.SetBackupSrc(data)
+
+    @rpc
+    def GetBackupSrcList(self, data):
+        return self.system_api.GetBackupSrc(data)
+
+    @rpc
+    def GetRecoverList(self, data):
+        return self.system_api.GetRecoverSrc(data)
+
+    @rpc
+    def GetSystemHistory(self, data):
+        return self.system_api.GetSystemHistory(data)
+
+    @rpc
+    def GetSystemProcessHistory(self, data):
+        return self.system_api.GetSystemProcessHistory(data)
+
     ######################### System ########################
     @rpc
     def registerSystemInfo(self, data):
@@ -136,4 +164,130 @@ class DbmanagerService(object):
 
     @rpc
     def zfsListData(self, data):
-        return 
+        return
+
+    @rpc
+    def backupmetadata(self, data):
+        res_data = self.system_api.backupmetadata(data)
+        return data
+
+    @rpc
+    def backupmetadata_linux(self, data):
+        res_data = self.system_api.backupmetadata_linux(data)
+        return data
+
+    @rpc
+    def snapshotlist(self, data):
+        res_data = self.system_api.snapshotlist(data)
+        return data
+
+    # Get SnapshotList
+    @rpc
+    def GetSnapshotList(self, data):
+        logger.debug('GetSnapshotList {}'.format(data))
+        res_data = self.system_api.get_snapshotlist(data)
+        return res_data
+
+    @rpc
+    def GetSnapImageList(self, data):
+        logger.debug('GetSnapImageList {}'.format(data))
+        res_data = self.system_api.get_snapshotImageList(data)
+        return res_data
+
+    @rpc
+    def GetTargetImageList(self, data):
+        logger.debug('GetSnapImageList {}'.format(data))
+        res_data = self.system_api.get_TargetImageList(data)
+        return res_data
+
+    @rpc
+    def GetIPMIInfo(self, data):
+        logger.debug('GetIPMIInfo {}'.format(data))
+        res_data = self.ipmi_api.GetIPMIInfo(data)
+        return res_data
+
+    @rpc
+    def GetRsyncData(self, data):
+        logger.debug('GetRsyncData {}'.format(data))
+        res_data = self.system_api.get_RsyncBaseData(data)
+        return res_data
+
+    @rpc
+    def processhistory(self, data):
+        res_data = self.system_api.processhistory(data)
+        return res_data
+
+    @rpc
+    def checkprocessstatus(self, data):
+        res_data = self.system_api.checkprocessstatus(data)
+        return res_data
+
+    @rpc
+    def GetSystemInfo(self, data):
+        res_data = self.system_api.getsysteminfo(data)
+        return res_data
+
+    ########################### RECOVER ###################
+    @rpc
+    def getnodeuuid_image(self, data):
+        res_data = self.system_api.getnodeuuid_image(data)
+        return res_data
+
+
+    ########################## USER MANAGER NODE LIST ####################
+    # return : {'user_id': <String>, 'insert_ok_cnt': <INT>, 'node_uuid_ok_list': [<String>,...,<String>]}
+    @rpc
+    def registerManagerNodeList(self, data):
+        res_data = self.user_api.registerUserManagerNodeList(data)
+        return res_data
+
+    # return : {'user_id': <String>, 'node_cnt': <INT> ,'node_list': [<String>,...,<String>]}
+    @rpc
+    def getManagerNodeList(self, data):
+        res_data = self.user_api.getUserManagerNodeList(data)
+        return res_data
+
+    ########################### MASTER ACCOUNT ###########################
+    @rpc
+    def masteradd(self, data):
+        # data : {'user_id':<String>,'user_password':<String>}
+        # "id_name", "role", "password"
+        masterData = {}
+        masterData['role'] = 'master'
+        masterData['id_name'] = data.get('user_id')
+        masterData['password'] = data.get('user_password')
+        res_data = self.user_api.masteradd(masterData)
+
+        if 'errorcode' in res_data:
+            return False
+        else:
+            return True
+
+    @rpc
+    def masterdel(self, data):
+        masterData = {}
+        masterData['id_name'] = data.get('user_id')
+        res_data = self.user_api.masterdel(masterData)
+
+        if 'errorcode' in res_data:
+            return False
+        else:
+            return True
+
+
+    ############################# SYNC CHECK ##############################
+    @rpc
+    def synccheck(self, data):
+        return self.sync_api.synccheck(data)
+
+    @rpc
+    def mastersync(self, data):
+        return self.user_api.masteradd(data)
+
+    @rpc
+    def masterinfo(self, data):
+        return self.user_api.getmasterinfo(data)
+
+
+
+

@@ -3,11 +3,16 @@ import json
 
 from marshmallow import ValidationError
 from werkzeug.wrappers import Response
+from ..gql_client.GqlClient import GqlClient
 
 from timpani_gateway.exceptions import InvalidError
 logger = logging.getLogger(__name__)
 
 class DataParser(object):
+    app = None
+
+    def setapp(self, app):
+        self.app = app
 
     def response_data(self, func):
         def decorator(*args, **kwargs):
@@ -34,6 +39,18 @@ class DataParser(object):
 
         return decorator
 
+    def gqlclient(self, func):
+        def decorator(*args, **kwargs):
+            try:
+                client = GqlClient("http://192.168.221.1:38080/graphql", self.app)
+                kwargs['client'] = client
+                kwargs['app'] = self.app
+                res = func(*args, **kwargs)
+            except Exception as e:
+                logger.info("EXCEPTION : {}".format(e))
+            return res
+        return decorator
+
     def response_exception(self, err_code, err_dic):
         error_code_str = '0' + str(err_code)
         if type(err_dic).__name__.__eq__('NoneType'):
@@ -58,7 +75,7 @@ class DataParser(object):
     def GetJson(self, schemas, request):
         try:
             # JSON 문구 파싱 루틴
-            if 'josn' in request.form:           # multipart form-data
+            if 'json' in request.form:           # multipart form-data
                 json_str = request.form['json']
             else:
                 json_str = request.get_data(as_text=True)

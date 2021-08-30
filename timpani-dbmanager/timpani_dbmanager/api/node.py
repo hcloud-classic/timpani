@@ -38,6 +38,7 @@ class NodeAPI(object):
 
         node_data = {
             'uuid': data.get('node_uuid'),
+            'node_uuid': data.get('node_uuid'),
             'parent_uuid': None,
             'ischild': ischild,
             'system_id': None
@@ -52,9 +53,12 @@ class NodeAPI(object):
     def registerNode(self, data, database_session):
         logger.info('RegisterNode {}'.format(data))
         # Create IPMI Connection Information
-        ipmi_id = dao.ipmi_dao.IpmiDAO.get_ipmi_connection_id(data=data, database_session= database_session)
+        ipmi_id = dao.ipmi_dao.IpmiDAO.get_ipmi_connection_id(data=data, database_session=database_session)
+        logger.info('++++++++ 1')
         if ipmi_id is None:
+            logger.info('++++++++ 2')
             ipmi_id, _ = dao.ipmi_dao.IpmiDAO.register_ipmi_connection_info(data=data, database_session=database_session)
+        logger.info('++++++++ 3')
         data['capability'] = data.get('node_type')
         data['alias'] = data.get('node_name')
         node_data, node_detail_data = self.check_capability(data)
@@ -108,7 +112,7 @@ class NodeAPI(object):
     @BaseDAO.database_operation
     def getNodeInfo(self, data, database_session):
         logger.info("getNodeInfo nodeuuid : {}".format(data.get('node_uuid')))
-        search_data = {'nodeuuid': data.get('node_uuid'), 'search_kind': 0}
+        search_data = {'node_uuid': data.get('node_uuid'), 'search_kind': 0}
         res = dao.node_dao.NodeDAO.get_node_information(search_data, database_session=database_session)
         print(res)
         return res

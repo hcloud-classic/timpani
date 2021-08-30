@@ -30,6 +30,11 @@ class IpmiAPI(object):
         return res_data
 
     @BaseDAO.database_operation
+    def GetIPMIInfo(self, data, database_session):
+        logger.info("GetIPMIInfo {}".format(data))
+        return dao.ipmi_dao.IpmiDAO.get_ipmi_info(data, database_session=database_session)
+
+    @BaseDAO.database_operation
     def deleteIPMIConn(self, data, database_session):
         logger.info('deleteIPMIConn {}'.format(data))
         res = dao.ipmi_dao.IpmiDAO.del_ipmi_connection_info(node_uuid=data.get('conn_id'), database_session=database_session)

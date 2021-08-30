@@ -6,7 +6,7 @@ from timpani_framework.grpc.constants import Cardinality
 from timpani_framework.grpc.client import Client
 from timpani_framework.grpc.errors import GrpcError
 from timpani_framework.grpc.dependency_provider import GrpcProxy
-#from timpani_apimanager.service import ClientService
+#from timpani_base.service import ClientService
 import json
 import grpc
 import copy

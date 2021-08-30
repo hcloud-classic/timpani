@@ -34,6 +34,19 @@ class IpmiDAO(BaseDAO):
 
         return obj.node_uuid
 
+    @staticmethod
+    def get_ipmi_info(data, database_session):
+        query = database_session.query(IpmiConnectInfo.user,
+                                       IpmiConnectInfo.passwd,
+                                       IpmiConnectInfo.ipv4address).\
+            filter(IpmiConnectInfo.node_uuid == data.get('node_uuid'))
+
+        query = query.first()
+        field_list = ['id', 'pw', 'ip']
+        res = BaseDAO.return_data(query=query, field_list=field_list)
+
+        return res
+
     @staticmethod # @BaseDAO.database_operation
     def del_ipmi_connection_info(node_uuid, database_session):
         try:
@@ -44,7 +57,6 @@ class IpmiDAO(BaseDAO):
         return '1'
 
     @staticmethod
-    # @BaseDAO.database_operation
     def get_ipmi_connection_id(data, database_session):
         data = database_session.query(IpmiConnectInfo).filter(IpmiConnectInfo.node_uuid == data.get('node_uuid')).first()
         if data is None:

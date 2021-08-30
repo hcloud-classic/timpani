@@ -11,10 +11,11 @@ class IpmiConnectInfo(Base):
     __tablename__ = "tb_ipmi_connect_info"
 
     id = Column("id", Integer, primary_key=True)
-    ipv4address = Column("ipv4address",String(32))
+    ipv4address = Column("ipv4address", String(32))
     ipv4port = Column("ipv4port", String(16))
     user = Column("users",String(32))
     passwd = Column("passwd",String(256))
+    macaddress = Column(String(64), default='-', nullable=True)
     node_uuid = Column(String(64), nullable=True)       # GET IPMI Data (ipmitool mc guid)
     is_discovery = Column("is_discovery", Integer, default=0)       # 1: true, 0 : false
     register_dt = Column(DateTime(timezone=True), default=func.now())

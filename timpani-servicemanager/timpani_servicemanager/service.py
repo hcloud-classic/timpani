@@ -123,7 +123,7 @@ class ServiceManager(object):
         ret_table = []
         for service_instance, service_name in service_all:
             logger.info("service_instance [{}]".format(service_instance))
-            ret = self.trans.send(method=method, instance=service_instance, service_name= service_name, msg=msg)
+            ret = self.trans.send(method=method, instance=service_instance, service_name=service_name, msg=msg)
             ret_table.append(ret)
 
         return ret_table
@@ -133,6 +133,7 @@ class ServiceManager(object):
         ret_table = []
         for service_instance, service_name in service_all:
             logger.info("service_instance [{}]".format(service_instance))
+            service_name = 'filemanager_service'
             ret = self.trans.send(method=method, instance=service_instance, service_name=service_name, msg=msg)
             ret_table.append(ret)
 
@@ -170,8 +171,8 @@ class ServiceManager(object):
 
     @rpc
     def registerSystemInfo(self, data):
-        res_data = self.filemanager_send(method="check_directory", msg=data)
-        logger.info(res_data)
+        #res_data = self.filemanager_send(method="check_directory", msg=data)
+        #logger.info(res_data)
         res_data = self.db_send(method='registerSystemInfo', msg=data)
         return res_data
 
@@ -215,6 +216,83 @@ class ServiceManager(object):
         res_data = self.db_send(method='registerBiosInfo', msg=data)
         return res_data
 
+    @rpc
+    def backupmetadata(self, data):
+        logger.info("[service_manager] backupmetadata : {}".format(data))
+        res_data = self.db_send(method='backupmetadata', msg=data)
+        return res_data
+
+    @rpc
+    def backupmetadata_linux(self, data):
+        logger.info("[service_manager] backupmetadata_linux : {}".format(data))
+        res_data = self.db_send(method='backupmetadata_linux', msg=data)
+        return res_data
+
+    @rpc
+    def snapshotlist(self, data):
+        logger.info("[service_manager] snapshotlist : {}".format(data))
+        res_data = self.db_send(method='snapshotlist', msg=data)
+        return res_data
+
+    @rpc
+    def systembackup(self, data):
+        logger.info("[service_manager] systembackup : {}".format(data))
+        service_name = "backup_service_{}".format(data.get('node_uuid'))
+        if data.get('backup_type').__eq__('F'):
+            res_data = self.trans.send(method='fullbackup', instance=None,
+                                       service_name=service_name, msg=data)
+        else:
+            res_data = self.trans.send(method='incrementbackup', instance=None,
+                                   service_name=service_name, msg=data)
+        return res_data
+
+    @rpc
+    def systemrecover(self, data):
+        logger.info("[service_manager] systemrecover : {}".format(data))
+        service_name = "recover_service_{}".format(data.get('node_uuid'))
+        if data.get('recover_type').__eq__('O'):
+            # OS Recover
+            # Get node uuid (Recover Image)
+            pass
+        elif data.get('recover_type').__eq__('F'):
+            # Full backup recover
+            pass
+        else:
+            # Increment Backup Recover
+            res_data = self.trans.send(method='incrementrecover', instance=None,
+                                       service_name=service_name, msg=data)
+            pass
+        res_data={}
+        return res_data
+
+###################################### [ Backup Src Collector ] ##############################################
+    @rpc
+    def SetBackupSrcList(self, data):
+        logger.info("[service_manager] SetBackupSrcList : {}".format(data))
+        res_data = self.db_send(method='SetBackupSrcList', msg=data)
+        return res_data
+
+    @rpc
+    def checkSnapshotImage(self, data):
+        res_data = self.filemanager_send(method="check_snapshotImage", msg=data)
+        logger.info(res_data)
+        return res_data
+
+
+
+###################################### [ HISTORY ] ##############################################
+
+    @rpc
+    def processhistory(self, data):
+        logger.info("[service_manager] processhistory : {}".format(data))
+        res_data = self.db_send(method='processhistory', msg=data)
+        return res_data
+
+    @rpc
+    def checkprocessstatus(self, data):
+        logger.info("[service_manager] checkprocessstatus : {}".format(data))
+        res_data = self.db_send(method='checkprocessstatus', msg=data)
+        return res_data
 
 
 

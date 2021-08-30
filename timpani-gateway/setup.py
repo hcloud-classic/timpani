@@ -12,8 +12,15 @@ setup(
         'flask',
         'flask_script',
         'graphene',
+        'PyJWT',
         'Flask-GraphQL',
+        'gql',
     ],
+    entry_points={
+        'console_scripts': [
+           'timpanimaster=timpani_gateway.cli.master:main',
+        ]
+    },
     extras_require={
         'dev': [
             'pytest==4.5.0',

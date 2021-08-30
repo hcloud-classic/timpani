@@ -65,7 +65,11 @@ class _Command:
         if hasattr(self, 'targets') and self.targets:
             arguments.extend(self.targets)
 
-        zfs_call = [self.main_command, self.sub_command] + arguments
+        if self.sub_command is None:
+            zfs_call = [self.main_command] + arguments
+        else:
+            zfs_call = [self.main_command, self.sub_command] + arguments
+
         try:
             output = subprocess.check_output(zfs_call, universal_newlines=True, stderr=subprocess.PIPE, env=new_env)
         except subprocess.CalledProcessError as e:

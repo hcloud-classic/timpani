@@ -27,6 +27,28 @@ def getNowStr(node_name:str):
 def testSnapshot():
     logger.info("TEST SnapShot")
 
+def metadatacollection():
+    res_data = {}
+    # partition information collecation
+
+    # zpool property collection
+    zpool_property = ResourceSystem.getZpoolGetAll()
+
+    # zfs property collection
+    zfs_property = ResourceSystem.getZfsGetAll()
+
+    # zfs list -Hv
+    zpool_status = ResourceSystem.zpoollistHv()
+    print(zpool_status)
+
+    # geom list
+    # geom_list = ResourceSystem.geomlist()
+    zdb_list = ResourceSystem.zdb_list()
+    res_data = {'zpool_property': zpool_property, 'zfs_property': zfs_property, 'zdb_list': zdb_list}
+    print("res_data : {}".format(res_data))
+    return res_data
+
+
 def test():
     logger.info("TEST")
     snapshot_list, dataset_list, snapname_list = ResourceSystem.getSnapShotList()
@@ -54,7 +76,7 @@ def test():
 
         # Create Snapshot
         create_list = ResourceSystem.FullSnapshot(poolname=pool, snapname=snapname)
-        check_snapshot_str = "{}@{}".format(pool,snapname)
+        check_snapshot_str = "{}@{}".format(pool, snapname)
         for snapshot_name in create_list:
             if snapshot_name.__eq__(check_snapshot_str):
                 send_list.append(snapshot_name)
@@ -80,7 +102,7 @@ def test_1():
             break
 
 def test_2():
-    res = ResourceSystem.zpoolStatus()
+    res = ResourceSystem.GetBackupSrcList()
     print(res)
 
 import click
@@ -94,7 +116,7 @@ def main(command):
     if command.__eq__('test_snapshot'):
         testSnapshot()
     elif command.__eq__('test'):
-        test_1()
+        test_2()
 
 
 if __name__ == "__main__":

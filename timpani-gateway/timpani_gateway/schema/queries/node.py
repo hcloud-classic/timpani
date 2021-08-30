@@ -17,4 +17,14 @@ def resolve_getnode(root, info, **kwargs):
     #     nodeuuid = 'uuid-01-02'
     # )
 
-    return node
+    return msg
+
+def resolve_updatenode(root, info, **kwargs):
+    uuid = kwargs.get('uuid')
+    type = kwargs.get('nodeType')
+    ipmiIp = kwargs.get('ipmiIp')
+    ipmiPw = kwargs.get('ipmiPw')
+    ipmiUser = kwargs.get('ipmiUser')
+    msg={'node_uuid':uuid, 'node_type':type, 'ipmi_ipv4':ipmiIp, 'ipmi_user':ipmiUser, 'ipmi_passwd':ipmiPw}
+
+    return msg

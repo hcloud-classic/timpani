@@ -1,14 +1,14 @@
 import nameko
-from nameko.rpc import RpcProxy
+from nameko.standalone.rpc import ClusterRpcClient
+from timpani_base.constants import NAMEKO_AMQP_URI
 
 class RpcClient():
 
-    def __init__(self, client_proc):
-        self.client = client_proc
-
+    @nameko.config.patch(NAMEKO_AMQP_URI)
     def db_send(self, method, msg):
-        # response = self.client.registerNode.call_aync(msg)
-        # return response
-        call_method = getattr(self.client,method)
-        response = call_method.call_async(msg)
-        return response
+        print(NAMEKO_AMQP_URI['AMQP_URI'])
+        with ClusterRpcClient() as rpc:
+            call_method = getattr(rpc.dbmanager_service, method)
+            # res = call_method.call_async(msg)
+            res = call_method(msg)
+        return res

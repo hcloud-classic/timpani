@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime
 from timpani_dbmanager.db.db_connect_handler import DBConnectHandler
 from sqlalchemy.exc import OperationalError
 
@@ -63,20 +64,62 @@ class BaseDAO:
 
     @staticmethod
     def insert(obj, database_session):
+        logger.info("INSERT ENTER")
         database_session.add(obj)
         database_session.flush()
         database_session.refresh(obj)
 
     @staticmethod
     def update(obj, database_session):
+        logger.info("UPDATE ENTER")
         # database_session.add(obj
         database_session.flush()
-        # database_session.refresh(obj)
+        database_session.refresh(obj)
 
     @staticmethod
     def delete(obj, database_session):
         database_session.delete(obj)
         database_session.flush()
+
+    @staticmethod
+    def return_data(query, field_list):
+        res = None
+
+        if query is None:
+            return res
+
+        if isinstance(query, list):
+            res = []
+            for item in query:
+                temp_list = list(item)
+                cnt = 0
+                temp_res = {}
+                for field in field_list:
+                    logger.debug('type : {}'.format(type(temp_list[cnt])))
+                    if isinstance(temp_list[cnt], datetime):
+                        temp_list[cnt] = temp_list[cnt].strftime('%Y-%m-%d %H:%M:%S')
+                    temp_res[field] = temp_list[cnt]
+                    cnt += 1
+                logger.debug('temp_res : {}'.format(temp_res))
+                res.append(temp_res)
+        else:
+            temp_list = list(query)
+            cnt = 0
+            temp_res = {}
+            for field in field_list:
+                logger.debug('type : {}'.format(type(temp_list[cnt])))
+                if isinstance(temp_list[cnt], datetime):
+                    temp_list[cnt] = temp_list[cnt].strftime('%Y-%m-%d %H:%M:%S')
+                temp_res[field] = temp_list[cnt]
+                cnt += 1
+            logger.debug('temp_res : {}'.format(temp_res))
+            res = temp_res
+
+        return res
+
+    @staticmethod
+    def debug_sql_print(query, func_name):
+        logger.info("SQL [ {} ] : {}".format(func_name, query.statement.compile(compile_kwargs={"literal_binds": True})))
 
 
 
