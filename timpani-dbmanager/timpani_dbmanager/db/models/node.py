@@ -48,7 +48,7 @@ class SyncNode(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(BIGINT, primary_key=True)
-    uuid = Column(String(64), unique=True)  # phy UUID
+    uuid = Column(String(64))  # phy UUID
     server_uuid = Column(String(64))    # Innogrid Service UUID
     node_name = Column(String(10))  # Parent(MASTER, STORAGE), Child(COMPUTE)
     group_id = Column(String(10))
@@ -68,7 +68,7 @@ class SyncVolume(Base):
     __table_args__ = {'extend_existing': True}
 
     id = Column(BIGINT, primary_key=True)
-    uuid = Column(String(64), unique=True)  # Volume UUID
+    uuid = Column(String(64))  # Volume UUID
     name = Column(String(128))      # ZFS VOLUME NAME
     server_uuid = Column(String(64))    # Innogrid Service UUID
     user_uuid = Column(String(10))  # USER ID

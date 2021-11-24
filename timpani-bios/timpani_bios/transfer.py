@@ -1,23 +1,29 @@
 import nameko
 import logging
-from nameko.standalone.rpc import ServiceRpcProxy
-from .constants import AMQP_CONFIG
+from nameko.standalone.rpc import ClusterRpcClient
+from timpani_base.constants import NAMEKO_AMQP_URI
 
 logger = logging.getLogger(__name__)
 
 class TransferServiceManager():
 
-    AMQP_URI = AMQP_CONFIG
+    @nameko.config.patch(NAMEKO_AMQP_URI)
+    def db_send(self, method, msg):
+        print(NAMEKO_AMQP_URI['AMQP_URI'])
+        with ClusterRpcClient() as rpc:
+            call_method = getattr(rpc.dbmanager_service, method)
+            # res = call_method.call_async(msg)
+            res = call_method(msg)
+        return res
 
-    def __init__(self, amqp_uri):
-        self.AMQP_URI = amqp_uri
+    @nameko.config.patch(NAMEKO_AMQP_URI)
+    def api_send(self, method, msg):
+        print(NAMEKO_AMQP_URI['AMQP_URI'])
+        with ClusterRpcClient() as rpc:
+            call_method = getattr(rpc.apimanager_service, method)
+            # res = call_method.call_async(msg)
+            res = call_method(msg)
+        return res
 
-    def send(self, method, service_name, msg):
-        logger.info("[SEND] Service Name : {} AMQP_URI : {}".format(service_name, self.AMQP_URI))
-
-        with ServiceRpcProxy(service_name, self.AMQP_URI) as rpc:
-            call_method = getattr(rpc, method)
-            response = call_method.call_async(msg)
-            return response.result()
 
 

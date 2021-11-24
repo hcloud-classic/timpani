@@ -25,7 +25,8 @@ class DBConnectHandler:
     @staticmethod
     def initalize_db_connection_handler():
         try:
-            DBConnectHandler._connection_string = ConfigrationFileReader().read_file()[GENERNEL][SQL_CONNECTION_STRING]
+            config_data, _ = ConfigrationFileReader().read_file()
+            DBConnectHandler._connection_string = config_data[GENERNEL][SQL_CONNECTION_STRING]
             DBConnectHandler.engine = create_engine(DBConnectHandler._connection_string, echo=False)
             print("SQL_CONNECTION_STRING : {}".format(DBConnectHandler._connection_string))
             Base.metadata.create_all(DBConnectHandler.engine)

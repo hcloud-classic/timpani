@@ -13,10 +13,7 @@ class BaseDAO:
             handler = DBConnectHandler()
             _, req_param = params
             kwargs['database_session'] = handler.session
-            if 'page_msg' in req_param.keys():
-                page_msg = req_param.get('page_msg')
-            else:
-                page_msg = ''
+
 
             while True:
                 try:
@@ -30,7 +27,7 @@ class BaseDAO:
                     # handler.session.close()
                     errorcode = "E0406"
                     errorstr = "Exception OperationlError"
-                    responses = {'errorcode': errorcode, 'errorstr': errorstr, 'page_msg': page_msg}
+                    responses = {'errorcode': errorcode, 'errorstr': errorstr}
                     logger.info("Exception OperationlError")
                     return responses
                 except Exception as e:
@@ -40,7 +37,7 @@ class BaseDAO:
                     # logger.info("Exception DB kwargs {}".format(params))
                     errorcode = "6001"
                     errorstr = "DB Internal Error"
-                    responses = {'errorcode': errorcode, 'errorstr': errorstr, 'page_msg': page_msg}
+                    responses = {'errorcode': errorcode, 'errorstr': errorstr}
                     return responses
 
         return wrapped_function
@@ -64,14 +61,14 @@ class BaseDAO:
 
     @staticmethod
     def insert(obj, database_session):
-        logger.info("INSERT ENTER")
+        # logger.info("INSERT ENTER")
         database_session.add(obj)
         database_session.flush()
         database_session.refresh(obj)
 
     @staticmethod
     def update(obj, database_session):
-        logger.info("UPDATE ENTER")
+        # logger.info("UPDATE ENTER")
         # database_session.add(obj
         database_session.flush()
         database_session.refresh(obj)
@@ -82,7 +79,7 @@ class BaseDAO:
         database_session.flush()
 
     @staticmethod
-    def return_data(query, field_list):
+    def return_data(query, field_list, ins_field=None, ins_val=None):
         res = None
 
         if query is None:
@@ -95,24 +92,26 @@ class BaseDAO:
                 cnt = 0
                 temp_res = {}
                 for field in field_list:
-                    logger.debug('type : {}'.format(type(temp_list[cnt])))
+                    # logger.debug('type : {}'.format(type(temp_list[cnt])))
                     if isinstance(temp_list[cnt], datetime):
                         temp_list[cnt] = temp_list[cnt].strftime('%Y-%m-%d %H:%M:%S')
                     temp_res[field] = temp_list[cnt]
                     cnt += 1
-                logger.debug('temp_res : {}'.format(temp_res))
+                # logger.debug('temp_res : {}'.format(temp_res))
+                if ins_field is not None:
+                    temp_res[ins_field] = ins_val
                 res.append(temp_res)
         else:
             temp_list = list(query)
             cnt = 0
             temp_res = {}
             for field in field_list:
-                logger.debug('type : {}'.format(type(temp_list[cnt])))
+                # logger.debug('type : {}'.format(type(temp_list[cnt])))
                 if isinstance(temp_list[cnt], datetime):
                     temp_list[cnt] = temp_list[cnt].strftime('%Y-%m-%d %H:%M:%S')
                 temp_res[field] = temp_list[cnt]
                 cnt += 1
-            logger.debug('temp_res : {}'.format(temp_res))
+            # logger.debug('temp_res : {}'.format(temp_res))
             res = temp_res
 
         return res

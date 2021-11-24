@@ -15,22 +15,24 @@ class ConfigrationFileReader:
 
 
     def read_file(self):
-        configuration = defaultdict(dict)
-
-        # parser = configparser.ConfigParser(inline_comment_prefixes=';')
-        parser = configparser.ConfigParser()
+        configuration = {}
+        db_configuration = {}
+        parser = configparser.ConfigParser(inline_comment_prefixes=';')
+        # parser = configparser.ConfigParser()
         parser.optionxform = str
-        parser.read([self.filename],encoding='utf-8')
+        parser.read([self.filename], encoding='utf-8')
 
         for section in parser.sections():
             print("Sesstion : %s " % section)
+            configuration[section] = {}
+            db_configuration[section] = {}
             for parameter_name, parameter_value in parser.items(section):
                 print("option : %s " % parameter_name)
                 print("option_value : %s" % parameter_value)
-
+                parameter_name_lower = parameter_name.lower()
                 configuration[section][parameter_name] = parameter_value
-
-        return configuration
+                db_configuration[section][parameter_name_lower] = parameter_value
+        return configuration, db_configuration
 
 # if __name__=='__main__':
 #     config = ConfigrationFileReader("test.ini")

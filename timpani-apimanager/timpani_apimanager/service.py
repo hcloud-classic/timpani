@@ -1,89 +1,9 @@
-# from .apimanager_pb2 import ActionResponse, ResgisterResponse
-# from .apimanager_pb2_grpc import ApimanagerServiceStub
-#
-# from timpani_framework.grpc.entrypoint import Grpc
-# from google.protobuf import json_format
-# from .api.dbmanager import dbmanagerClient
-# import json
-# import dmidecode
-#
-# grpc = Grpc.implementing(ApimanagerServiceStub)
-#
-#
-# from timpani_dbmanager.dbmanager_pb2 import ActionRequest, ActionResponse
-# from timpani_dbmanager.dbmanager_pb2_grpc import DbmanagerServiceStub
-# from timpani_framework.grpc.dependency_provider import GrpcProxy
-# from timpani_framework.grpc.entrypoint import grpc_client
-#
-# class ClientService:
-#     name = "apimanager_client"
-#     client = GrpcProxy("//127.0.0.1", DbmanagerServiceStub)
-#
-#     @grpc_client
-#     def Method(self, action, method, msg_dict):
-#         request = ActionRequest(action=1, msgid=1, method="test", msg=json.dumps(msg_dict))
-#         responses = self.client.action(request)
-#         return responses
-#
-# # ActionRequest
-# # int32 action = 1;
-# # int32 msgid = 2;
-# # string method = 3;
-# # google.protobuf.Struct message = 4;
-#
-# def get_system_uuid():
-#     dmi = dmidecode.DMIDecode()
-#     return dmi.get("System")[0].get("UUID")
-#
-# class ApiManagerService:
-#     name = 'apimanager_service'
-#
-#     # print("Node UUID : {}".format(get_system_uuid()))
-#     # run=False
-#     # if not run:
-#     #     print("Not UUID")
-#     #     exit()
-#     #
-#     dbmanager = dbmanagerClient()
-#     client = GrpcProxy("//127.0.0.1", DbmanagerServiceStub)
-#
-#     def Method(self, action, method, msg_dict):
-#         request = ActionRequest(action=1, msgid=1, method="test", msg=json.dumps(msg_dict))
-#         responses = self.client.action(request)
-#         return responses
-#
-#
-#     @grpc
-#     def action(self, request, context):
-#         print('request : {}'.format(request))
-#         print('action : {}'.format(request.action))
-#         print('msgid : {}'.format(request.msgid))
-#         print('method : {}'.format(request.method))
-#         print('msg : {}'.format(json.loads(request.msg)))
-#         call_method = getattr(self.dbmanager,request.method)
-#         print("======================")
-#         responses = call_method(action=request.action, msg=request.msg, func = self.Method)
-#
-#         # msg_dict = json.loads(request.msg)
-#         # method = "test1"
-#         # responses = self.Method(action=request.action, method=method, msg_dict=msg_dict)
-#         msg = None
-#         if responses is None:
-#             msg = "error"
-#
-#         return ActionResponse(
-#             result='success',
-#             msgid=request.msgid,
-#             method=request.method,
-#             msg=msg or responses.msg
-#         )
-
-
-
-
-###############################################################################################################33
 from nameko.rpc import rpc, RpcProxy
 from .process.backup import ProcessBackup
+from .process.restore import ProcessRestore
+from .process.lock import ProcessLock
+from .process.bios import BiosRunner
+from .process.delete import SnapDelete
 
 import logging.handlers
 ################################### logger ############################################################################
@@ -106,7 +26,12 @@ class ApimanagerService(object):
     servicemanager_rpc = RpcProxy('service_manager')
     filemanager_rpc = RpcProxy('filemanager_service')
     backup_server_rpc = RpcProxy('backup_server_service')
-    proc_backup = ProcessBackup()
+
+    p_lock = ProcessLock()
+    proc_backup = ProcessBackup(p_lock)
+    proc_restore = ProcessRestore(p_lock)
+    proc_bios = BiosRunner(p_lock)
+    proc_delete = SnapDelete(p_lock)
 
     def db_send(self, method, msg):
         call_method = getattr(self.dbmanager_rpc, method)
@@ -408,10 +333,598 @@ class ApimanagerService(object):
     # Get Target List
 
 
+    def findmodulename(self, nodetype, data, moduletype):
+        if nodetype.upper().__eq__('COMPUTE'):
+            find_data = {'nodetype': 'STORAGE', 'moduletype': moduletype}
+        elif nodetype.upper().__eq__('MASTER'):
+            find_data = {'nodetype':'MASTER', 'moduletype': moduletype}
+        elif nodetype.upper().__eq__('STORAGE'):
+            find_data = {'nodetype': 'STORAGE', 'moduletype': moduletype}
+        elif nodetype.upper().__eq__('BIOS'):
+            find_data = {'moduletype': moduletype}
+        elif nodetype.upper().__eq__('FILEMANAGER'):
+            find_data = {'moduletype': moduletype}
+
+        getmodulename = self.db_send('appgetmodulename', find_data)
+        target_uuid = None
+        res_modulename = None
+        server_uuid = None
+        if 'uuid' in data:
+            if data.get('uuid') is None:
+                target_uuid = None
+            else:
+                target_uuid = data.get('uuid').replace('-', '').upper()
+        else:
+            target_uuid = None
+
+        logger.info("[Get Node Type] getnodetype_dic : {}".format(getmodulename))
+        if isinstance(getmodulename, list):
+            list_size = len(getmodulename)
+            for modulename in getmodulename:
+                if list_size == 1:
+                    res_modulename = modulename.get('modulename')
+                    server_uuid = modulename.get('uuid')
+                    if target_uuid is None:
+                        target_uuid = server_uuid
+                else:
+                    tmp_uuid = modulename.get('uuid')
+                    if target_uuid is not None:
+                        if tmp_uuid.__eq__(target_uuid):
+                            server_uuid = modulename.get('uuid')
+                            res_modulename = modulename.get('modulename')
+                    else:
+                        errorcode = "1021"
+                        errorstr = "Failed Backup"
+                        response = {'errorcode': errorcode, 'errorstr': errorstr}
+                        return response
+        else:
+            if getmodulename is not None:
+                res_modulename = getmodulename.get('modulename')
+                server_uuid = getmodulename.get('uuid')
+            else:
+                errorcode = "1021"
+                errorstr = "Failed Backup"
+                response = {'errorcode': errorcode, 'errorstr': errorstr}
+                return response
+
+        return res_modulename, server_uuid, target_uuid
+
+
     # Backup Command
     @rpc
     def backupcmd(self, data):
         # {"uuid":"PHY NODE UUID", "usetype" : "ORIGIN, OS, DATA", "nodetype" : "MASTER, STORAGE, COMPUTE"
         # , "name" : "volume name"}
+        nodetype = data.get('nodetype')
+        usetype = data.get('usetype')
+
+        if nodetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif nodetype.upper().__eq__('MASTER') or usetype.upper().__eq__('STORAGE') or usetype.upper().__eq__(
+                'COMPUTE'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if usetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif usetype.upper().__eq__('OS') or usetype.upper().__eq__('ORIGIN') or usetype.upper().__eq__('DATA'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if not iscontinue:
+            err_code = "1004"
+            err_message = "Parameter Data miss matching"
+            return {'err_code': err_code, 'err_message': err_message}
+
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'backup')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+
+        if modulename is None:
+            err_code = "4001"
+            err_message = "Node Connection Failed"
+            return {'err_code': err_code, 'err_message': err_message}
+
+        data['target_uuid'] = target_uuid
+        data['server_uuid'] = server_uuid
+        data['modulename'] = modulename
+
+        ischeckconfigdata = False
+        if nodetype.__eq__('MASTER'):
+            config_data = {'get_kind': nodetype}
+            getconfigdata = self.db_send('getappconfig', config_data)
+            data['configdata'] = getconfigdata
+            ischeckconfigdata = True
+        elif nodetype.__eq__('STORAGE'):
+            config_data = {'get_kind': nodetype}
+            getconfigdata = self.db_send('getappconfig', config_data)
+            data['configdata'] = getconfigdata
+            ischeckconfigdata = True
+
+        if ischeckconfigdata:
+            if getconfigdata is None:
+                errcode = '4000'
+                errmsg = 'DB Not Found Data'
+                return {'err_code': errcode, 'err_message': errmsg}
+
+            if 'errorcode' in getconfigdata:
+                errcode = getconfigdata.get('errorcode')
+                errmsg = getconfigdata.get('errorstr')
+                return {'err_code': errcode, 'err_message': errmsg}
+
+        # GET NFS INFO
+        nfs_data = {'get_kind': 'NFS'}
+        getconfigdata = self.db_send('getappconfig', nfs_data)
+        if getconfigdata is None:
+            errcode = '4000'
+            errmsg = 'DB Not Found Data'
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        if 'errorcode' in getconfigdata:
+            errcode = getconfigdata.get('errorcode')
+            errmsg = getconfigdata.get('errorstr')
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        data['nfs_server'] = getconfigdata.get('backup_ip')
+        data['export_path'] = getconfigdata.get('nfs_export_path')
+        data['mount_path'] = getconfigdata.get('nfs_mount_path')
+        logger.info("NFS CONFIG DATA : {}".format(getconfigdata))
         res = self.proc_backup.run(data)
         return res
+
+
+    @rpc
+    def restorecmd(self, data):
+        # { "usetype" : "ORIGIN, OS, DATA", "nodetype" : "MASTER, STORAGE, COMPUTE"
+        # , "name" : "volume name", "isboot": true or false, "snapname": "snapname}
+
+        nodetype = data.get('nodetype')
+        usetype = data.get('usetype')
+
+        iscontinue = False
+
+        if nodetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif nodetype.upper().__eq__('MASTER') or usetype.upper().__eq__('STORAGE') or usetype.upper().__eq__('COMPUTE'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if usetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif usetype.upper().__eq__('OS') or usetype.upper().__eq__('ORIGIN') or usetype.upper().__eq__('DATA'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if not iscontinue:
+            err_code = "1004"
+            err_message = "Parameter Data miss matching"
+            return {'err_code': err_code, 'err_message': err_message}
+
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'restore')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+        isfailed =False
+
+        if modulename is None or modulename.__eq__(''):
+            err_code = "4001"
+            err_message = "Node Connection Failed"
+            return {'err_code': err_code, 'err_message': err_message}
+        data['modulename'] = modulename
+
+        if nodetype.__eq__('COMPUTE'):
+            restoredata = self.db_send('getrestoresnapdata', data)
+
+            if 'errorcode' in restoredata:
+                errcode = restoredata.get('errorcode')
+                errmsg = restoredata.get('errorstr')
+                return {'err_code': errcode, 'err_message': errmsg}
+            data['restoredata'] = restoredata
+            data['name'] = restoredata.get('target_snapdata').get('snapdata').get('dataset')
+            logger.info("target restoredata : {}".format(restoredata.get('target_snapdata')))
+            logger.info("restoredata : {}".format(restoredata))
+            if 'server_uuid' in restoredata:
+                if restoredata.get('server_uuid') is None:
+                    data['server_uuid'] = server_uuid
+                else:
+                    data['server_uuid'] = restoredata.get('server_uuid')
+            else:
+                data['server_uuid'] = server_uuid
+
+            if 'target_uuid' in restoredata:
+                if restoredata.get('target_uuid') is None:
+                    data['target_uuid'] = target_uuid
+                else:
+                    data['target_uuid'] = restoredata.get('target_uuid')
+            else:
+                data['target_uuid'] = server_uuid
+        else:
+            restoredata = self.db_send('getrestoresnapdata', data)
+            data['name'] = restoredata.get('target_snapdata').get('snapdata').get('dataset')
+            if 'errorcode' in restoredata:
+                errcode = restoredata.get('errorcode')
+                errmsg = restoredata.get('errorstr')
+                return {'err_code': errcode, 'err_message': errmsg}
+            data['restoredata'] = restoredata
+            data['server_uuid'] = server_uuid
+            data['target_uuid'] = target_uuid
+
+        # GET NFS INFO
+        nfs_data = {'get_kind': 'NFS'}
+        getconfigdata = self.db_send('getappconfig', nfs_data)
+        logger.info("NFS GETCONFIGDATA : {}".format(getconfigdata))
+        if getconfigdata is None:
+            logger.info("NFS GETCONFIGDATA aaa : {}".format(getconfigdata))
+            errcode = '4000'
+            errmsg = 'DB Not Found Data'
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        if 'errorcode' in getconfigdata:
+            errcode = getconfigdata.get('errorcode')
+            errmsg = getconfigdata.get('errorstr')
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        data['nfs_server'] = getconfigdata.get('backup_ip')
+        data['export_path'] = getconfigdata.get('nfs_export_path')
+        data['mount_path'] = getconfigdata.get('nfs_mount_path')
+        logger.info("NFS CONFIG DATA : {}".format(getconfigdata))
+        logger.info("DATA : {}".format(data))
+        res = self.proc_restore.run(data)
+
+        return res
+
+    @rpc
+    def deletecmd(self, data):
+        # { "usetype" : "ORIGIN, OS, DATA", "nodetype" : "MASTER, STORAGE, COMPUTE"
+        # , "name" : "volume name", "isboot": true or false, "snapname": "snapname}
+
+        nodetype = data.get('nodetype')
+        usetype = data.get('usetype')
+
+        iscontinue = False
+
+        if nodetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif nodetype.upper().__eq__('MASTER') or usetype.upper().__eq__('STORAGE') or usetype.upper().__eq__(
+                'COMPUTE'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if usetype is None:
+            err_code = "1001"
+            err_message = "Parameter Data None"
+            return {'err_code': err_code, 'err_message': err_message}
+        elif usetype.upper().__eq__('OS') or usetype.upper().__eq__('ORIGIN') or usetype.upper().__eq__('DATA'):
+            iscontinue = True
+        else:
+            iscontinue = False
+
+        if not iscontinue:
+            err_code = "1004"
+            err_message = "Parameter Data miss matching"
+            return {'err_code': err_code, 'err_message': err_message}
+
+        modulename, server_uuid, target_uuid = self.findmodulename('FILEMANAGER', data, 'filemanager')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+        isfailed = False
+
+        if modulename is None or modulename.__eq__(''):
+            err_code = "4001"
+            err_message = "Node Connection Failed"
+            return {'err_code': err_code, 'err_message': err_message}
+        data['modulename'] = modulename
+
+        if nodetype.__eq__('COMPUTE'):
+            dellist = self.db_send('delincrementsnaplist', data)
+
+            if 'errorcode' in dellist:
+                errcode = dellist.get('errorcode')
+                errmsg = dellist.get('errorstr')
+                return {'err_code': errcode, 'err_message': errmsg}
+
+            if len(dellist) == 0:
+                errcode = "8404"
+                errmsg = "Target snap file delete not possible"
+                return {'err_code': errcode, 'err_message': errmsg}
+
+            data['dellist'] = dellist
+            # deldatalist = dellist.get('dellist')
+            for datainfo in dellist:
+                if datainfo.get('server_uuid') is None:
+                    data['server_uuid'] = server_uuid
+                else:
+                    data['server_uuid'] = datainfo.get('server_uuid')
+
+                if datainfo.get('target_uuid') is None:
+                    data['target_uuid'] = target_uuid
+                else:
+                    data['target_uuid'] = datainfo.get('target_uuid')
+
+        else:
+            if usetype.__eq__('DATA') and nodetype.__eq__('MASTER'):
+                dellist = self.db_send('delincrementsnaplist', data)
+                # deldatalist = dellist.get('dellist')
+                for datainfo in dellist:
+                    if datainfo.get('server_uuid') is None:
+                        data['server_uuid'] = server_uuid
+                    else:
+                        server_uuid = datainfo.get('server_uuid')
+
+                    if datainfo.get('target_uuid') is None:
+                        data['target_uuid'] = target_uuid
+                    else:
+                        target_uuid = datainfo.get('target_uuid')
+
+            else:
+                dellist = []
+                target = self.db_send('delonesnap', data)
+                if target is None:
+                    errcode = "8405"
+                    errmsg = "Target snap file not found"
+                    return {'err_code': errcode, 'err_message': errmsg}
+                dellist.append(target)
+                server_uuid = target.get('server_uuid')
+                target_uuid = target.get('target_uuid')
+
+            if 'errorcode' in dellist:
+                errcode = dellist.get('errorcode')
+                errmsg = dellist.get('errorstr')
+                return {'err_code': errcode, 'err_message': errmsg}
+
+            data['dellist'] = dellist
+            data['server_uuid'] = server_uuid
+            data['target_uuid'] = target_uuid
+
+        # GET NFS INFO
+        nfs_data = {'get_kind': 'NFS'}
+        getconfigdata = self.db_send('getappconfig', nfs_data)
+        logger.info("NFS GETCONFIGDATA : {}".format(getconfigdata))
+        if getconfigdata is None:
+            logger.info("NFS GETCONFIGDATA aaa : {}".format(getconfigdata))
+            errcode = '4000'
+            errmsg = 'DB Not Found Data'
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        if 'errorcode' in getconfigdata:
+            errcode = getconfigdata.get('errorcode')
+            errmsg = getconfigdata.get('errorstr')
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        data['nfs_server'] = getconfigdata.get('backup_ip')
+        data['export_path'] = getconfigdata.get('nfs_export_path')
+        data['mount_path'] = getconfigdata.get('nfs_mount_path')
+        logger.info("NFS CONFIG DATA : {}".format(getconfigdata))
+        logger.info("DATA : {}".format(data))
+        res = self.proc_delete.run(data)
+
+        return res
+
+    @rpc
+    def getdatadir(self, data):
+        res = self.db_send('getdatadir', data)
+        return res
+
+    @rpc
+    def getnodetype(self, data):
+        logger.info("[Get Node Type] data : {}".format(data))
+        getnodetype_dic = self.db_send('getnodetype', data)
+        logger.info("[Get Node Type] getnodetype_dic : {}".format(getnodetype_dic))
+
+        if 'nodetype' in getnodetype_dic:
+            if getnodetype_dic.get('nodetype') is not None:
+                nodetype = getnodetype_dic.get('nodetype').upper()
+            else:
+                errorcode = "1011"
+                errorstr = "Failed Get NodeType"
+                response = {'errorcode': errorcode, 'errorstr': errorstr}
+                return response
+        else:
+            errorcode = "1011"
+            errorstr = "Failed Get NodeType"
+            response = {'errorcode': errorcode, 'errorstr': errorstr}
+            return response
+
+        data['get_kind'] = nodetype
+        getconfigdata = self.db_send('getappconfig', data)
+        resdata = {'nodetype':nodetype, 'configdata':getconfigdata}
+        return resdata
+
+    @rpc
+    def getbiosconfig(self, data):
+        data['get_kind'] = 'IPMI'
+        getconfigdata = self.db_send('getappconfig', data)
+        resdata = {'nodetype': 'BIOS', 'configdata': getconfigdata}
+        return resdata
+
+    @rpc
+    def addservice(self, data):
+        logger.info("[AddService] data : {}".format(data))
+        res = self.db_send('addservice', data)
+        return res
+
+    @rpc
+    def keepalive(self, data):
+        logger.info("[keepalive] data : {}".format(data))
+        res = self.db_send('keepalive', data)
+        return res
+
+    @rpc
+    def getrealhist(self, data):
+        res = self.db_send('getrealhist', data)
+        return res
+
+    @rpc
+    def getprocesshist(self, data):
+        res = self.db_send('getprocesshist', data)
+        return res
+
+    @rpc
+    def getrestorelist(self, data):
+        res = self.db_send('getrestorelist', data)
+        return res
+
+    @rpc
+    def setbiostemplatedata(self, data):
+        nodetype = 'BIOS'
+        if data is None:
+            data = {}
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'bios')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+
+        if modulename is None:
+            errorcode = "1022"
+            errorstr = "Not Found ModuleName"
+            response = {'errorcode': errorcode, 'errorstr': errorstr}
+            return response
+
+        res_data = self.proc_bios.template_init(modulename)
+        res = self.db_send('setbiostemplatedata', res_data)
+        return res
+
+    @rpc
+    def biosconfig(self, data):
+        nodetype = 'BIOS'
+        if data is None:
+            data = {}
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'bios')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+
+        if modulename is None:
+            errorcode = "1022"
+            errorstr = "Not Found ModuleName"
+            response = {'errorcode': errorcode, 'errorstr': errorstr}
+            return response
+
+        data['server_uuid'] = server_uuid
+        data['target_uuid'] = target_uuid
+        data['modulename'] = modulename
+
+        # GET NFS INFO
+        nfs_data = {'get_kind': 'NFS'}
+        getconfigdata = self.db_send('getappconfig', nfs_data)
+
+        if getconfigdata is None:
+            logger.info("NFS GETCONFIGDATA aaa : {}".format(getconfigdata))
+            errcode = '4000'
+            errmsg = 'DB Not Found Data'
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        if 'errorcode' in getconfigdata:
+            errcode = getconfigdata.get('errorcode')
+            errmsg = getconfigdata.get('errorstr')
+            return {'err_code': errcode, 'err_message': errmsg}
+
+        data['nfs_server'] = getconfigdata.get('backup_ip')
+        data['export_path'] = getconfigdata.get('nfs_export_path')
+        data['mount_path'] = getconfigdata.get('nfs_mount_path')
+
+        res = self.proc_bios.run(data)
+        return res
+
+    @rpc
+    def gettemplatelist(self, data):
+        res = self.db_send('gettemplatelist', data)
+        return res
+
+    @rpc
+    def settemplate(self, data):
+        nodetype = 'BIOS'
+        if data is None:
+            data = {}
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'bios')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+
+        if modulename is None:
+            errorcode = "1022"
+            errorstr = "Not Found ModuleName"
+            response = {'errorcode': errorcode, 'errorstr': errorstr}
+            return response
+
+        data['server_uuid'] = server_uuid
+        data['target_uuid'] = target_uuid
+        getdata = self.db_send('getbiostemplatedata', data)
+        logger.info("get template data: {}".format(getdata))
+
+        return getdata
+
+    @rpc
+    def getnodelist(self, data):
+        return self.db_send('getnodelist', data)
+
+    @rpc
+    def getvolumelist(self, data):
+        return self.db_send('getvolumelist', data)
+
+    @rpc
+    def sensorcollect(self, data):
+        logger.info("==================== SENSOR COLLECT =============================")
+        nodetype = 'BIOS'
+        if data is None:
+            data = {}
+        modulename, server_uuid, target_uuid = self.findmodulename(nodetype, data, 'bios')
+        logger.info("modulename: {}\nserver_uuid: {}\ntarget_uuid: {}".format(modulename, server_uuid, target_uuid))
+
+        if modulename is None:
+            errorcode = "1022"
+            errorstr = "Not Found ModuleName"
+            response = {'errorcode': errorcode, 'errorstr': errorstr}
+            return response
+
+        nodelist = self.db_send('getnodelist', None)
+        ipmilist = []
+        for nodedata in nodelist:
+            user = nodedata.get('ipmi_user_id')
+            passwd = nodedata.get('ipmi_user_password')
+            ip = nodedata.get('bmc_ip')
+            macaddr = nodedata.get('bmc_mac_addr')
+            nodetype = nodedata.get('node_name')
+            if nodetype.upper().__eq__('COMPUTE'):
+                target_uuid = nodedata.get('server_uuid')
+            else:
+                target_uuid = nodedata.get('uuid')
+            ipmilist.append({'user':user, 'passwd':passwd, 'ip':ip, 'macaddr':macaddr,
+                             'nodetype': nodetype.upper(), 'target_uuid':target_uuid})
+        data['ipmilist'] = ipmilist
+        res_data = self.proc_bios.getsensor(modulename, data)
+        res_data = self.db_send('setipmisensor', res_data)
+        # res = self.db_send('setbiostemplatedata', res_data)
+        return res_data
+
+    @rpc
+    def setdatadir(self, data):
+        res = self.db_send('setdatadir', data)
+        return res
+
+    @rpc
+    def getdatadir(self, data):
+        res = self.db_send('getdatadir', data)
+        return res
+
+    @rpc
+    def getcurtemplate(self, data):
+        res = self.db_send('getcurtemplate', data)
+        return res
+
+    @rpc
+    def getsyscfgdumplist_api(self, data):
+        res = self.db_send('getsyscfgdumplist', data)
+        return res
+
+    @rpc
+    def getsyscfgdumpdata_api(self, data):
+        res = self.db_send('getsyscfgdumpdata', data)
+        return res
+
+

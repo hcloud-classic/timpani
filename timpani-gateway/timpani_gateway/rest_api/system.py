@@ -4,7 +4,8 @@ import json
 from flask import request
 from .base import EndpointAction, DataParser
 from timpani_gateway.nameko.api import ApimanagerClient
-from .schema import GetRecoverList, SetSystemHistory, SystemBackup, SystemRecover, GetBackupSrcList, SystemHistory, Backup
+from .schema import (GetBackupSrcList_Inno, GetRecoverList, SetSystemHistory, SystemBackup, SystemRecover,
+                     GetBackupSrcList, SystemHistory, Backup, Restore, CheckToken, RealHist, SnapDel)
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +16,27 @@ class SystemAPI:
     def __init__(self,app):
         self.app = app
         self.client = ApimanagerClient()
+        self.client.setapp(app)
         app.add_url_rule("/v1/filesystem/getBackupSrcList", 'getbackupsrclist',
                          view_func=EndpointAction(self.getbackupsrclist), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/getbackuptargetlist", 'getbackuptargetlist',
+                         view_func=EndpointAction(self.getbackupsrclist_inno), methods=['POST'])
         app.add_url_rule("/v1/filesystem/getRecoverList", 'getrecoverlist',
                          view_func=EndpointAction(self.getrecoverlist), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/getrecovertargetlist", 'getrecovertargetlist',
+                         view_func=EndpointAction(self.getrestoresrclist_inno), methods=['POST'])
         app.add_url_rule("/v1/filesystem/backup", 'bakup',
                          view_func=EndpointAction(self.backup), methods=['POST'])
-        app.add_url_rule("/v1/filesystem/recover", 'systemrecover',
-                         view_func=EndpointAction(self.systemrecover), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/restore", 'restore',
+                         view_func=EndpointAction(self.restore), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/delsnap", 'delsnap',
+                         view_func=EndpointAction(self.delsnap), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/getrealhist", 'getrealhist',
+                         view_func=EndpointAction(self.getrealhist), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/backuphist", 'backuphist',
+                         view_func=EndpointAction(self.backuphist), methods=['POST'])
+        app.add_url_rule("/v1/filesystem/restorehist", 'restorehist',
+                         view_func=EndpointAction(self.restorehist), methods=['POST'])
         app.add_url_rule("/v1/filesystem/history/getSystemHistory", 'getsystemhistory',
                          view_func=EndpointAction(self.getsystemhistorybackup), methods=['POST'])
         app.add_url_rule("/v1/filesystem/history/getHistoryBackup", 'getsystemhistorybakup',
@@ -43,6 +57,28 @@ class SystemAPI:
         dic_data = self.parser.GetJson(GetBackupSrcList(strict=True), request)
         self.app.logger.info("getbackupsrclist : send before")
         res = self.client.send(method='getbackupsrclist', msg=dic_data)
+        return res
+
+    @parser.response_data
+    def getbackupsrclist_inno(self):
+        self.app.logger.info("getbackupsrclist_inno")
+        dic_data = self.parser.GetJson(GetBackupSrcList_Inno(strict=True), request)
+        self.app.logger.info("dic_data : {}".format(dic_data))
+        token = dic_data.get('token')
+        usetype = dic_data.get('usetype')
+        self.app.logger.info("dic_data : {}".format(token))
+        targets = self.client.backuptargetlist(dic_data)
+        self.app.logger.info("getbackupsrclist : send before")
+        # res = self.client.send(method='getbackupsrclist', msg=dic_data)
+        return targets
+
+    @parser.response_data
+    def getrestoresrclist_inno(self):
+        self.app.logger.info("getrecoverlist")
+        dic_data = self.parser.GetJson(GetBackupSrcList_Inno(strict=True), request)
+
+        self.app.logger.info("getrecoverlist : send before")
+        res = self.client.GetRestoreList(dic_data)
         return res
 
     @parser.response_data
@@ -71,10 +107,42 @@ class SystemAPI:
         return res
 
     @parser.response_data
-    def systemrecover(self):
-        self.app.logger.info("systemrecover")
-        dic_data = self.parser.GetJson(SystemRecover(strict=True), request)
-        res = self.client.send(method='systemrecover', msg= dic_data)
+    def restore(self):
+        self.app.logger.info("restore command")
+        dic_data = self.parser.GetJson(Restore(strict=True), request)
+        res = self.client.send(method='restorecmd', msg=dic_data)
+        return res
+
+    @parser.response_data
+    def delsnap(self):
+        self.app.logger.info("snapshot delete command")
+        dic_data = self.parser.GetJson(SnapDel(strict=True), request)
+        res = self.client.send(method='deletecmd', msg=dic_data)
+        return res
+
+    @parser.response_data
+    def getrealhist(self):
+        self.app.logger.info("getrealhist")
+        dic_data = self.parser.GetJson(RealHist(strict=True), request)
+        self.app.logger.info("getrealhist : send before {}".format(dic_data))
+        dic_data['run_uuid'] = dic_data.get('runprocuuid')
+        res = self.client.send(method='getrealhist', msg=dic_data)
+        return res
+
+    @parser.response_data
+    def restorehist(self):
+        self.app.logger.info("restorehist")
+        dic_data = self.parser.GetJson(CheckToken(strict=True), request)
+        dic_data['kind'] = "restore"
+        res = self.client.GetProcessHist(dic_data)
+        return res
+
+    @parser.response_data
+    def backuphist(self):
+        self.app.logger.info("backuphist")
+        dic_data = self.parser.GetJson(CheckToken(strict=True), request)
+        dic_data['kind'] = "backup"
+        res = self.client.GetProcessHist(dic_data)
         return res
 
     @parser.response_data

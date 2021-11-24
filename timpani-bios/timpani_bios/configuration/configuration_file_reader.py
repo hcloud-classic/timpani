@@ -17,7 +17,8 @@ class ConfigrationFileReader:
     def read_file(self):
         configuration = defaultdict(dict)
 
-        parser = configparser.ConfigParser()
+        parser = configparser.ConfigParser(inline_comment_prefixes=';')
+        # parser = configparser.ConfigParser()
         parser.optionxform = str
         parser.read([self.filename], encoding='utf-8')
 

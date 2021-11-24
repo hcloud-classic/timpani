@@ -43,3 +43,13 @@ class IpmiAPI(object):
         else:
             return {'result':'1', 'resultmsg':'Data deletion complete'}
 
+    @BaseDAO.database_operation
+    def setipmisensor(self, data, database_session):
+        datalist = data.get('sensordatalist')
+
+        for serverdata in datalist:
+            for sensordata in serverdata:
+                # logger.info("INPUT Sensordata : {}".format(sensordata))
+                res = dao.ipmi_dao.IpmiSensorDAO.setdata(sensordata, database_session)
+        return res
+

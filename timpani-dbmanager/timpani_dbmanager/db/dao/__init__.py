@@ -8,3 +8,5 @@ from . import firmware_dao
 from . import bios_dao
 from . import user_dao
 from . import sync_dao
+from . import app_dao
+from . import backupmeta_dao

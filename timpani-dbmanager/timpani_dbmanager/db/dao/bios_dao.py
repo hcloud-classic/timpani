@@ -1,9 +1,423 @@
 import logging
 from .base_dao import BaseDAO
-from ..models.bios import (Bios, BiosConfig, BiosConfigHistory, BiosConfigList, BiosOptions, BiosOptionsAvail, BiosOptionsAvailList)
+from ..models.bios import (Bios, BiosConfig, BiosConfigHistory, BiosConfigList, BiosOptions,
+                           BiosOptionsAvail, BiosOptionsAvailList,
+                           BiosRedfishAvail, BiosRedfishMatch, BiosTemplate,
+                           BiosCurBiosconfig, BiosCurTemplate, BiosBackup)
 from sqlalchemy.sql import func
 
 logger = logging.getLogger(__name__)
+
+######################################### [template] #######################################################
+
+class BiosRedfishAvailDAO(BaseDAO):
+    FIELD = ["redfish_key", "cfg_set_val", "redfish_val"]
+
+    @staticmethod
+    def setdata(data, database_session):
+        cfg_set_val = data.get('cfg_set_val')
+        redfish_val = data.get('redfish_val')
+        redfish_key = data.get('redfish_key')
+        query = database_session.query(BiosRedfishAvail).filter(BiosRedfishAvail.redfish_key == redfish_key)
+        query = query.filter(BiosRedfishAvail.redfish_val == redfish_val)
+        query = query.filter(BiosRedfishAvail.cfg_set_val == cfg_set_val).first()
+        field_list = BiosRedfishAvailDAO.FIELD
+        if query is None:
+            obj = BiosRedfishAvail()
+            BaseDAO.set_value(obj, field_list, data)
+            BaseDAO.insert(obj, database_session)
+
+            return obj.id
+
+        return query.id
+
+    @staticmethod
+    def getdata(data, database_session):
+        if 'redfish_key' in data:
+            redfish_key = data.get('redfish_key')
+        else:
+            redfish_key = None
+
+        if 'redfish_val' in data:
+            redfish_val = data.get('redfish_val')
+        else:
+            redfish_val = None
+
+        query = database_session.query(BiosRedfishAvail.redfish_key,
+                                       BiosRedfishAvail.cfg_set_val,
+                                       BiosRedfishAvail.redfish_val)
+        if redfish_key is not None:
+            query = query.filter(BiosRedfishAvail.redfish_key == redfish_key)
+
+        if redfish_val is not None:
+            query = query.filter(BiosRedfishAvail.redfish_val == redfish_val)
+
+        query = query.all()
+
+        if query is None:
+            return None
+        else:
+            res = BaseDAO.return_data(query=query, field_list=BiosRedfishAvailDAO.FIELD)
+
+        return res
+
+    @staticmethod
+    def delAll(database_session):
+        try:
+            query = database_session.query(BiosRedfishAvail).all()
+            for obj in query:
+                BaseDAO.delete(obj, database_session)
+            return '1'
+        except Exception as e:
+            return '0'
+
+
+class BiosRedfishMatchDAO(BaseDAO):
+    FIELD = ["match_kind", "syscfg_key", "redfish_key"]
+
+    @staticmethod
+    def setdata(data, database_session):
+        syscfg_key = data.get('syscfg_key')
+        match_kind = data.get('match_kind')
+        redfish_key = data.get('redfish_key')
+        query = database_session.query(BiosRedfishMatch).filter(BiosRedfishMatch.redfish_key == redfish_key)
+        query = query.filter(BiosRedfishMatch.match_kind == match_kind)
+        query = query.filter(BiosRedfishMatch.syscfg_key == syscfg_key).first()
+        field_list = BiosRedfishMatchDAO.FIELD
+        if query is None:
+            obj = BiosRedfishMatch()
+            BaseDAO.set_value(obj, field_list, data)
+            BaseDAO.insert(obj, database_session)
+
+            return obj.id
+
+        return query.id
+
+    @staticmethod
+    def getdata(data, database_session):
+        if 'redfish_key' in data:
+            redfish_key = data.get('redfish_key')
+        else:
+            redfish_key = None
+
+        if 'match_kind' in data:
+            match_kind = data.get('match_kind')
+        else:
+            match_kind = None
+
+        query = database_session.query(BiosRedfishMatch.match_kind,
+                                       BiosRedfishMatch.syscfg_key,
+                                       BiosRedfishMatch.redfish_key)
+        if redfish_key is not None:
+            query = query.filter(BiosRedfishMatch.redfish_key == redfish_key)
+
+        if match_kind is not None:
+            query = query.filter(BiosRedfishMatch.match_kind == match_kind)
+
+        query = query.all()
+
+        if query is None:
+            return None
+        else:
+            res = BaseDAO.return_data(query=query, field_list=BiosRedfishMatchDAO.FIELD)
+
+        return res
+
+    @staticmethod
+    def delAll(database_session):
+        try:
+            query = database_session.query(BiosRedfishMatch).all()
+            for obj in query:
+                BaseDAO.delete(obj, database_session)
+            return '1'
+        except Exception as e:
+            return '0'
+
+
+class BiosTemplateDAO(BaseDAO):
+    FIELD = ["name", "redfish_key", "redfish_val", "cfg_set_val"]
+
+    @staticmethod
+    def setdata(data, database_session):
+        name = data.get('name')
+        cfg_set_val = data.get('cfg_set_val')
+        redfish_val = data.get('redfish_val')
+        redfish_key = data.get('redfish_key')
+        query = database_session.query(BiosTemplate).filter(BiosTemplate.redfish_key == redfish_key)
+        query = query.filter(BiosTemplate.redfish_val == redfish_val)
+        query = query.filter(BiosTemplate.cfg_set_val == cfg_set_val)
+        query = query.filter(BiosTemplate.name == name).first()
+        field_list = BiosTemplateDAO.FIELD
+        if query is None:
+            obj = BiosTemplate()
+            BaseDAO.set_value(obj, field_list, data)
+            BaseDAO.insert(obj, database_session)
+
+            return obj.id
+
+        return query.id
+
+    @staticmethod
+    def getdata(data, database_session):
+        if 'redfish_key' in data:
+            redfish_key = data.get('redfish_key')
+        else:
+            redfish_key = None
+
+        if 'redfish_val' in data:
+            redfish_val = data.get('redfish_val')
+        else:
+            redfish_val = None
+
+        if 'name' in data:
+            name = data.get('name')
+        else:
+            name = None
+
+        query = database_session.query(BiosTemplate.name,
+                                   BiosTemplate.redfish_key,
+                                   BiosTemplate.redfish_val,
+                                   BiosTemplate.cfg_set_val)
+        if redfish_key is not None:
+            query = query.filter(BiosTemplate.redfish_key == redfish_key)
+
+        if redfish_val is not None:
+            query = query.filter(BiosTemplate.redfish_val == redfish_val)
+
+        if name is not None:
+            query = query.filter(BiosTemplate.name == name)
+
+        query = query.all()
+
+        if query is None:
+            return None
+        else:
+            res = BaseDAO.return_data(query=query, field_list=BiosTemplateDAO.FIELD)
+
+        return res
+
+    @staticmethod
+    def gettemplatelist(data, database_session):
+
+        FIELD = ["name", "redfish_key", "syscfg_key", "cfg_set_val"]
+
+        if 'match_kind' in data:
+            match_kind = data.get('match_kind')
+            if match_kind is None or match_kind.__eq__(''):
+                match_kind = 'Default'
+        else:
+            match_kind = 'Default'
+
+        query = database_session.query(BiosTemplate.name,
+                                       BiosTemplate.redfish_key,
+                                       BiosRedfishMatch.syscfg_key,
+                                       BiosTemplate.cfg_set_val)
+        query = query.join(BiosRedfishMatch, BiosRedfishMatch.match_kind == match_kind)
+        query = query.filter(BiosRedfishMatch.redfish_key == BiosTemplate.redfish_key).all()
+
+        if query is None:
+            return None
+        else:
+            template_data_list = BaseDAO.return_data(query=query, field_list=FIELD)
+
+        res_data = []
+        for templatedata in template_data_list:
+            name = templatedata.get('name')
+
+            issave = True
+            for priv_template in res_data:
+                if priv_template.get('name').__eq__(name):
+                    priv_template.get('data').append(templatedata)
+                    issave = False
+
+            if issave:
+                save_data = {'name': name, 'data': [templatedata]}
+                res_data.append(save_data)
+
+        return res_data
+
+    @staticmethod
+    def delAll(database_session):
+        try:
+            query = database_session.query(BiosTemplate).all()
+            for obj in query:
+                BaseDAO.delete(obj, database_session)
+            return '1'
+        except Exception as e:
+            return '0'
+
+class BiosCurBiosconfigDAO(BaseDAO):
+
+    FIELD = ['sub_id', 'macaddr', 'guid', 'section', 'syscfg_key', 'cfg_set_val']
+
+    @staticmethod
+    def setdata(data, database_session):
+        obj = BiosCurBiosconfig()
+        BaseDAO.set_value(obj,BiosCurBiosconfigDAO.FIELD, data)
+        BaseDAO.insert(obj, database_session)
+
+        return obj.sub_id
+
+    @staticmethod
+    def getsubid(data, database_session):
+        query = database_session.query(BiosCurBiosconfig)
+        query = query.filter(BiosCurBiosconfig.macaddr == data.get('macaddr'))
+        query = query.order_by(BiosCurBiosconfig.sub_id.desc()).first()
+
+        if query is None:
+            return None
+
+        return query.sub_id
+
+    @staticmethod
+    def getdata(data, database_session):
+        query = database_session.query(BiosCurBiosconfig.section,
+                                       BiosCurBiosconfig.syscfg_key,
+                                       BiosCurBiosconfig.cfg_set_val)
+        query = query.filter(BiosCurBiosconfig.macaddr == data.get('macaddr'))
+        query = query.filter(BiosCurBiosconfig.sub_id == data.get('sub_id')).all()
+        if query is None:
+            return []
+
+        FIELD = ["section","key","value"]
+        res = BaseDAO.return_data(query=query, field_list=FIELD)
+        return res
+
+    @staticmethod
+    def deldata(sub_id, database_session):
+        query = database_session.query(BiosCurBiosconfig).filter(BiosCurBiosconfig.sub_id==sub_id).all()
+        if query is None:
+            return False
+
+        for obj in query:
+            BaseDAO.delete(obj, database_session)
+        return True
+
+class BiosCurTemplateDAO(BaseDAO):
+
+    FIELD = ['macaddr', 'guid', 'name', 'redfish_key', 'syscfg_key',
+             'match_kind', 'cfg_set_val', 'redfish_val', 'cfg_bios_ver', 'cfg_fw_opcode']
+
+    @staticmethod
+    def setdata(data, database_session):
+        obj = BiosCurTemplate()
+        BaseDAO.set_value(obj, BiosCurTemplateDAO.FIELD, data)
+        BaseDAO.insert(obj, database_session)
+
+        return obj.id
+
+    @staticmethod
+    def getdata(data, database_session):
+        query = database_session.query(BiosCurTemplate.name,
+                                       BiosCurTemplate.match_kind,
+                                       BiosCurTemplate.redfish_key,
+                                       BiosCurTemplate.syscfg_key,
+                                       BiosCurTemplate.cfg_set_val,
+                                       BiosCurTemplate.redfish_val,
+                                       BiosCurTemplate.cfg_bios_ver,
+                                       BiosCurTemplate.cfg_fw_opcode)
+        query = query.filter(BiosCurTemplate.macaddr == data.get('macaddr')).all()
+        if query is None:
+            return []
+
+        FIELD = ["name", "match_kind", "redfish_key","syscfg_key","cfg_set_val","redfish_val",
+                 "cfg_bios_ver","cfg_fw_opcode"]
+        res = BaseDAO.return_data(query=query, field_list=FIELD)
+        return res
+
+    @staticmethod
+    def deldata(macaddr, database_session):
+        query = database_session.query(BiosCurTemplate).filter(BiosCurTemplate.macaddr == macaddr).all()
+        if query is None:
+            return False
+
+        for obj in query:
+            BaseDAO.delete(obj, database_session)
+        return True
+
+class BiosBackupDAO(BaseDAO):
+    FIELD = ['macaddr', 'guid', 'kind', 'backupname', 'sys_bios_ver', 'sys_me_ver',
+             'sys_sdr_ver', 'sys_bmc_ver', 'template_name', 'syscfg_path', 'syscfg_filename',
+             'redfish_filename', 'syscfg_sub_id']
+
+    @staticmethod
+    def setdata(data, database_session):
+        obj = BiosBackup()
+        BaseDAO.set_value(obj, BiosBackupDAO.FIELD, data)
+        BaseDAO.insert(obj, database_session)
+
+        return obj.id
+
+    @staticmethod
+    def getdata(data, database_session):
+        FIELD = ['macaddr', 'guid', 'kind', 'backupname', 'sys_bios_ver', 'sys_me_ver',
+                 'sys_sdr_ver', 'sys_bmc_ver', 'template_name', 'syscfg_path', 'syscfg_filename',
+                 'redfish_filename', 'syscfg_sub_id', 'time']
+        query = database_session.query(BiosBackup.macaddr,
+                                       BiosBackup.guid,
+                                       BiosBackup.kind,
+                                       BiosBackup.backupname,
+                                       BiosBackup.sys_bios_ver,
+                                       BiosBackup.sys_me_ver,
+                                       BiosBackup.sys_sdr_ver,
+                                       BiosBackup.sys_bmc_ver,
+                                       BiosBackup.template_name,
+                                       BiosBackup.syscfg_path,
+                                       BiosBackup.syscfg_filename,
+                                       BiosBackup.redfish_filename,
+                                       BiosBackup.syscfg_sub_id,
+                                       BiosBackup.register_dt)
+        query = query.filter(BiosBackup.macaddr == data.get('macaddr'))
+        if 'getkind' in data:
+            if data.get('getkind') is not None:
+                query = query.filter(BiosBackup.kind == data.get('getkind'))
+        query = query.order_by(BiosBackup.register_dt.desc()).all()
+
+        if query is None:
+            return []
+
+        res = BaseDAO.return_data(query=query, field_list=FIELD)
+        return res
+
+    @staticmethod
+    def getbiosconfig(data, database_session):
+        FIELD = ['macaddr', 'guid', 'kind', 'backupname', 'sys_bios_ver', 'sys_me_ver',
+                 'sys_sdr_ver', 'sys_bmc_ver', 'template_name', 'syscfg_path', 'syscfg_filename',
+                 'redfish_filename', 'syscfg_sub_id', 'time']
+        query = database_session.query(BiosBackup.macaddr,
+                                       BiosBackup.guid,
+                                       BiosBackup.kind,
+                                       BiosBackup.backupname,
+                                       BiosBackup.sys_bios_ver,
+                                       BiosBackup.sys_me_ver,
+                                       BiosBackup.sys_sdr_ver,
+                                       BiosBackup.sys_bmc_ver,
+                                       BiosBackup.template_name,
+                                       BiosBackup.syscfg_path,
+                                       BiosBackup.syscfg_filename,
+                                       BiosBackup.redfish_filename,
+                                       BiosBackup.syscfg_sub_id,
+                                       BiosBackup.register_dt)
+        query = query.filter(BiosBackup.macaddr == data.get('macaddr'))
+        if 'getkind' in data:
+            query = query.filter(BiosBackup.kind == data.get('getkind'))
+        query = query.order_by(BiosBackup.register_dt.desc()).first()
+
+        if query is None:
+            return None
+
+        res = BaseDAO.return_data(query=query, field_list=BiosBackupDAO.FIELD)
+        return res
+
+    @staticmethod
+    def deldata(backupname, database_session):
+        query = database_session.query(BiosBackup).filter(BiosBackup.backupname == backupname).first()
+        if query is None:
+            return False
+
+        BaseDAO.delete(query, database_session)
+        return True
+
 
 
 ########################################## [tb_bios] #######################################################

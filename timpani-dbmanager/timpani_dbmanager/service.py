@@ -1,38 +1,4 @@
-# from .dbmanager_pb2 import ActionResponse, ResgisterResponse
-# from .dbmanager_pb2_grpc import DbmanagerServiceStub
-#
-# from timpani_framework.grpc.entrypoint import Grpc
-# from google.protobuf import json_format
-# import json
-#
-# grpc = Grpc.implementing(DbmanagerServiceStub)
-#
-#
-# # ActionRequest
-# # int32 action = 1;
-# # int32 msgid = 2;
-# # string method = 3;
-# # google.protobuf.Struct message = 4;
-#
-# class DbManagerService:
-#     name = 'dbmanager_service'
-#
-#     @grpc
-#     def action(self, request, context):
-#         print('request : {}'.format(request))
-#         print('action : {}'.format(request.action))
-#         print('msgid : {}'.format(request.msgid))
-#         print('method : {}'.format(request.method))
-#         print('msg : {}'.format(json.loads(request.msg)))
-#         return ActionResponse(
-#             result='success',
-#             msgid=request.msgid,
-#             method=request.method,
-#             msg=request.msg
-#         )
-#
-##################################################################################################
-
+import sys
 from nameko.rpc import rpc
 from .api.node import NodeAPI
 from .api.ipmi import IpmiAPI
@@ -40,6 +6,8 @@ from .api.system import SystemAPI
 from .api.bios import BiosAPI
 from .api.user import UserAPI
 from .api.sync import SyncAPI
+from .api.app import AppAPI
+from .api.backupmeta import MetaAPI
 
 from timpani_dbmanager.db.db_connect_handler import DBConnectHandler
 from timpani_dbmanager.configuration.configuration_file_reader import ConfigrationFileReader
@@ -59,8 +27,17 @@ logger.addHandler(stream_hander)
 class DbmanagerService(object):
     name = 'dbmanager_service'
 
-    ConfigrationFileReader()
+
+    # Timpani Config File Save
+    app_api = AppAPI()
+    config = ConfigrationFileReader()
+    config_data, db_config_data = config.read_file()
     DBConnectHandler.initalize_db_connection_handler()
+    try:
+        app_api.setconfig(db_config_data.get('GENERAL'))
+    except Exception as e:
+        logger.info("Config File Read Failed : {}".format(e))
+        sys.exit()
 
     node_api = NodeAPI()
     ipmi_api = IpmiAPI()
@@ -68,7 +45,7 @@ class DbmanagerService(object):
     bios_api = BiosAPI()
     user_api = UserAPI()
     sync_api = SyncAPI()
-
+    meta_api = MetaAPI()
     print("RUN {}".format(name))
 
     @rpc
@@ -156,6 +133,15 @@ class DbmanagerService(object):
     @rpc
     def GetSystemProcessHistory(self, data):
         return self.system_api.GetSystemProcessHistory(data)
+
+    #new history
+    @rpc
+    def getrealhist(self, data):
+        return self.system_api.getreallog(data)
+
+    @rpc
+    def getprocesshist(self, data):
+        return self.system_api.getprocesshistory(data)
 
     ######################### System ########################
     @rpc
@@ -287,6 +273,139 @@ class DbmanagerService(object):
     @rpc
     def masterinfo(self, data):
         return self.user_api.getmasterinfo(data)
+
+    @rpc
+    def getnodelist(self, data):
+        return self.sync_api.getnodelist(data)
+
+    @rpc
+    def getvolumelist(self, data):
+        return self.sync_api.getvolumelist(data)
+
+    ############################ GET APP CONFIG ##########################
+    @rpc
+    def getappconfig(self, data):
+        return self.app_api.getconfig(data)
+
+    @rpc
+    def getnodetype(self, data):
+        return self.sync_api.getNodetype(data)
+
+    @rpc
+    def addservice(self, data):
+        return self.app_api.addservice(data)
+
+    @rpc
+    def keepalive(self, data):
+        return self.app_api.keepalive(data)
+
+    @rpc
+    def appgetmodulename(self, data):
+        return self.app_api.getmodulename(data)
+
+    @rpc
+    def savemetadata(self, data):
+        return self.meta_api.savemetadata(data)
+
+    @rpc
+    def getlastsnapdata(self, data):
+        return self.meta_api.getlastsnapdata(data)
+
+    @rpc
+    def getrestoresnapdata(self, data):
+        return self.meta_api.getrestoresnapdata(data)
+
+    @rpc
+    def getrestorelist(self, data):
+        return self.meta_api.getrestorelist(data)
+
+    @rpc
+    def setbiostemplatedata(self, data):
+        logger.info("[setbiostemplatedata] \n {}".format(data))
+        avail_data = data.get('avail_data')
+        match_data = data.get('match_data')
+        template_data = data.get('template_data')
+        self.bios_api.setbiosavail(avail_data)
+        self.bios_api.setbiosmatch(match_data)
+        self.bios_api.setbiostemplate(template_data)
+        return {'issucces': True}
+
+    @rpc
+    def getbiostemplatedata(self, data):
+        template_data = self.bios_api.getbiostemplate(data)
+        avail_data = self.bios_api.getbiosavail(data)
+        match_data = self.bios_api.getbiosmatch(data)
+        return {'avail_data':avail_data, 'match_data':match_data, 'template_data':template_data}
+
+    @rpc
+    def gettemplatelist(self, data):
+        res = self.bios_api.gettemplatelist(data)
+        return res
+
+    @rpc
+    def restoredataupdate(self, data):
+        res = self.meta_api.restoredataupdate(data)
+        return res
+
+    @rpc
+    def restoreosupdate(self, data):
+        res = self.meta_api.restoreosupdate(data)
+        return res
+
+    @rpc
+    def setipmisensor(self, data):
+        res = self.ipmi_api.setipmisensor(data)
+        return res
+
+    @rpc
+    def setbiosdata(self, data):
+        res = self.bios_api.setbiosdata(data)
+        return res
+
+    @rpc
+    def setdatadir(self, data):
+        res = self.app_api.setdatadir(data)
+        return res
+
+    @rpc
+    def getdatadir(self, data):
+        res = self.app_api.getdatadir(data)
+        return res
+
+    @rpc
+    def getbiosconfig(self, data):
+        res = self.bios_api.getbiosconfig(data)
+        return res
+
+    @rpc
+    def getcurtemplate(self, data):
+        res = self.bios_api.getcurtemplate(data)
+        return res
+
+    @rpc
+    def getsyscfgdumplist(self, data):
+        res = self.bios_api.getsyscfgdumplist(data)
+        return res
+
+    @rpc
+    def getsyscfgdumpdata(self, data):
+        res = self.bios_api.getsyscfgdumpdata(data)
+        return res
+
+    @rpc
+    def delincrementsnaplist(self, data):
+        res = self.meta_api.delincrementsnaplist(data)
+        return res
+
+    @rpc
+    def delonesnap(self, data):
+        res = self.meta_api.delonesnap(data)
+        return res
+
+    @rpc
+    def delsnapdata(self, data):
+        res = self.meta_api.delsnapdata(data)
+        return res
 
 
 

@@ -1,6 +1,6 @@
 import logging
 from .base_dao import BaseDAO
-from ..models.ipmi import IpmiConnectInfo
+from ..models.ipmi import IpmiConnectInfo, IpmiSensor
 from sqlalchemy.sql import func
 
 logger = logging.getLogger(__name__)
@@ -96,5 +96,20 @@ class IpmiDAO(BaseDAO):
 
         return obj.id
 
+class IpmiSensorDAO(BaseDAO):
+    FIELD = [
+        'addr', 'node_name', 'macaddr', 'sensor_name', 'sensor_value',
+        'sensor_units', 'sensor_state', 'sensor_lo_norec', 'sensor_lo_crit',
+        'sensor_lo_nocrit', 'sensor_up_nocrit', 'sensor_up_crit', 'sensor_up_norec'
+    ]
+
+    @staticmethod
+    def setdata(data, database_session):
+        # data['node_name'] = data.get('macaddr')
+        obj = IpmiSensor()
+        BaseDAO.set_value(obj, IpmiSensorDAO.FIELD, data)
+        BaseDAO.insert(obj, database_session)
+
+        return obj.id
 
 __all__ = [IpmiDAO]

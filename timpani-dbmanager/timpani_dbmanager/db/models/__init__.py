@@ -9,5 +9,6 @@ from . import app
 from . import user
 from . import sync
 from . import police
+from . import backupmeta
 
 

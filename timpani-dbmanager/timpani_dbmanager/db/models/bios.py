@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime, CHAR
+from sqlalchemy import Column, Integer, String, DateTime, BIGINT
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy import ForeignKey, UniqueConstraint
 from sqlalchemy.sql import func
@@ -90,6 +90,84 @@ class BiosOptionsAvail(Base):
     key = Column(String(128), nullable=False)
     key_id = Column(String(128), nullable=True)
 
+class BiosRedfishAvail(Base):
+    __tablename__ = "tb_redfish_avail"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    redfish_key = Column(String(64))
+    cfg_set_val = Column(String(64))
+    redfish_val = Column(Integer)
+
+class BiosRedfishMatch(Base):
+    __tablename__ = "tb_redfish_match"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    redfish_key = Column(String(64))
+    syscfg_key = Column(String(128))
+    match_kind = Column(String(64))
+
+
+class BiosTemplate(Base):
+    __tablename__ = "tb_bios_template"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    redfish_key = Column(String(64))
+    name = Column(String(64))
+    redfish_val = Column(Integer)
+    cfg_set_val = Column(String(64))
+
+class BiosCurBiosconfig(Base):
+    __tablename__ = "tb_bios_cur_biosconfig"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    sub_id = Column(BIGINT)
+    macaddr = Column(String(64))
+    guid = Column(String(64))
+    section = Column(String(256))
+    syscfg_key = Column(String(256))
+    cfg_set_val = Column(String(64))
+    register_dt = Column(DateTime(timezone=True), default=func.now())
+
+class BiosCurTemplate(Base):
+    __tablename__ = "tb_bios_cur_template"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    macaddr = Column(String(64))
+    guid = Column(String(64))
+    name = Column(String(32))
+    redfish_key = Column(String(64))
+    syscfg_key = Column(String(128))
+    match_kind = Column(String(64))
+    cfg_set_val = Column(String(64))
+    redfish_val = Column(Integer)
+    cfg_bios_ver = Column(String(64))
+    cfg_fw_opcode = Column(String(64))
+    register_dt = Column(DateTime(timezone=True), default=func.now())
+
+class BiosBackup(Base):
+    __tablename__ = "tb_bios_backup"
+    __table_args__ = {'extend_existing': True}
+
+    id = Column(BIGINT, primary_key=True)
+    macaddr = Column(String(64))
+    guid = Column(String(64))
+    kind = Column(String(16))
+    backupname = Column(String(64))
+    sys_bios_ver = Column(String(64))
+    sys_me_ver = Column(String(64))
+    sys_sdr_ver = Column(String(64))
+    sys_bmc_ver = Column(String(64))
+    template_name = Column(String(64))
+    syscfg_path = Column(String(256))
+    syscfg_filename = Column(String(128))
+    redfish_filename = Column(String(128))
+    syscfg_sub_id = Column(BIGINT)
+    register_dt = Column(DateTime(timezone=True), default=func.now())
 
 
 __all__ = ['Bios',
@@ -98,5 +176,8 @@ __all__ = ['Bios',
            'BiosConfigHistory',
            'BiosOptions',
            'BiosOptionsAvailList',
-           'BiosOptionsAvail'
+           'BiosOptionsAvail',
+           'BiosRedfishAvail',
+           'BiosRedfishMatch',
+           'BiosTemplate'
         ]

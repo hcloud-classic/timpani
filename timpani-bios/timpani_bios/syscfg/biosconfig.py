@@ -4,6 +4,7 @@ import re
 from collections import defaultdict
 
 class BiosConfig(object):
+
     def filter_str(self, string):
         pattern = '[\t]'
         s = re.sub(pattern=pattern, repl='', string=string)
@@ -54,3 +55,17 @@ class BiosConfig(object):
             syscfg_data.append({'section_key':section,'options':options})
 
         return syscfg_data
+
+    def getini_read(self, src_path, guid, macaddr):
+
+        parser = configparser.ConfigParser(inline_comment_prefixes=';')
+        parser.optionxform = str
+        parser.read([src_path], encoding='utf-8')
+        syscfg_data = []
+        for section in parser.sections():
+            for k, v in parser.items(section):
+                syscfg_data.append({'guid': guid, 'macaddr': macaddr, 'section': section,
+                                    'syscfg_key': k, 'cfg_set_val': v})
+        return syscfg_data
+
+

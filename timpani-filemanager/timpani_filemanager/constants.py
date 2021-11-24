@@ -3,8 +3,8 @@ from os.path import expanduser
 
 class Constants:
 
-    DIR_HOME = expanduser("/home/timpani/config")
-    CONFIGURATION_FILE = os.path.join(*(DIR_HOME, "timpani-filemanager.ini"))
+    DIR_HOME = expanduser("/etc/timpani/")
+    CONFIGURATION_FILE = os.path.join(*(DIR_HOME, "timpani.ini"))
 
 RABBITMQ_KEY = "RABBITMQ"
 AMQP_CONFIG_KEY = "AMQP_URI"

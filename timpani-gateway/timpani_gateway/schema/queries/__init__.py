@@ -1,47 +1,25 @@
 import graphene
 
 from ..union import NodeUnion, NodeRequestUnion
-from ..fields import NodeRequestField, NodeField, RegiManageNode, GetManageNode, CheckTokenResponse, LoginResponse, ValidResponse
+from ..fields import (NodeRequestField, NodeField, RegiManageNode, GetManageNode,
+                      CheckTokenResponse, LoginResponse, ValidResponse,
+                      CmdResponse, RealLogResponse, HistoryResponse, BackupTargetResponse,
+                      RestoretargetListResponse
+                      )
 from .node import resolve_getnode, resolve_updatenode
 from .managenode import resolve_regmanagenode, resolve_getmanagenode
 from .auth import resolve_login, resolve_checktoken, resolve_datasyncnoty, resolve_mastersync
+from .filesystem import (resolve_backup, resolve_backuptargetlist, resolve_history,
+                         resolve_reallog, resolve_restore, resolve_restoretargetlist)
+
 
 
 class Query(graphene.ObjectType):
-    node = graphene.Field(
-        type=NodeField,
-        uuid=graphene.String(default_value=None),
-        resolver=resolve_getnode)
-
-    updatenode = graphene.Field(
-        type=graphene.String,
-        uuid=graphene.String(default_value=None),
-        nodeType=graphene.String(default_value=None),
-        ipmiIp=graphene.String(default_value=None),
-        ipmiPw=graphene.String(default_value=None),
-        ipmiUser=graphene.String(default_value=None),
-        resolver=resolve_updatenode
-    )
-
-    # Management Node List
-    regmanagenode = graphene.Field(
-        type=RegiManageNode,
-        userId=graphene.String(),
-        nodeList=graphene.List(graphene.String),
-        resolver=resolve_regmanagenode
-
-    )
-
-    getmanagenode = graphene.Field(
-        type=GetManageNode,
-        userId=graphene.String(),
-        resolver=resolve_getmanagenode
-    )
 
     # AUTHORIZATION
     login = graphene.Field(
         type=LoginResponse,
-        userId=graphene.String(),
+        user=graphene.String(),
         passwd=graphene.String(),
         resolver=resolve_login
     )
@@ -67,6 +45,63 @@ class Query(graphene.ObjectType):
         synctype=graphene.String(),
         resolver=resolve_datasyncnoty
     )
+
+    backuptargetlist = graphene.Field(
+        type=BackupTargetResponse,
+        token=graphene.String(),
+        usetype=graphene.String(),
+        resolver=resolve_backuptargetlist
+    )
+
+    restoretargetlist = graphene.Field(
+        type=RestoretargetListResponse,
+        token=graphene.String(),
+        usetype=graphene.String(),
+        resolver=resolve_restoretargetlist
+    )
+
+    backup = graphene.Field(
+        type=CmdResponse,
+        token=graphene.String(),
+        uuid=graphene.String(),
+        usetype=graphene.String(),
+        nodetype=graphene.String(),
+        name=graphene.String(),
+        resolver=resolve_backup
+    )
+
+    restore = graphene.Field(
+        type=CmdResponse,
+        token=graphene.String(),
+        snapname=graphene.String(),
+        usetype=graphene.String(),
+        nodetype=graphene.String(),
+        isboot=graphene.Boolean(),
+        resolver=resolve_restore
+    )
+
+    reallog = graphene.Field(
+        type=RealLogResponse,
+        token=graphene.String(),
+        runuuid=graphene.String(),
+        resolver=resolve_reallog
+    )
+
+    history = graphene.Field(
+        type=HistoryResponse,
+        token=graphene.String(),
+        kind=graphene.String(),
+        resolver=resolve_history
+    )
+
+
+
+
+
+
+
+
+
 
 
 

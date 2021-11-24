@@ -6,6 +6,7 @@ from werkzeug.wrappers import Response
 from ..gql_client.GqlClient import GqlClient
 
 from timpani_gateway.exceptions import InvalidError
+from timpani_base.constants import QL_URL
 logger = logging.getLogger(__name__)
 
 class DataParser(object):
@@ -21,18 +22,21 @@ class DataParser(object):
                 # print("response_data res : {}".format(res))
                 # json_res = json.dumps(res)
                 if 'errorcode' in res:
-                    retMsg = {'result': res['errorcode'], 'resultMessage': res['errorstr'], 'resultData': {'page_msg' : res['page_msg']}}
+                    retMsg = {'result': res['errorcode'], 'resultMessage': res['errorstr'], 'resultData': res}
                 else:
                     retMsg = {'result': '0000', 'resultMessage': 'Success', 'resultData': res}
                 json_res = json.dumps(retMsg, ensure_ascii=False).encode('utf-8')
             except AttributeError as exc:
-                print("Exception {}".format(exc))
+                if self.app is not None:
+                    self.app.logger.info("Exception {}".format(exc))
                 raise InvalidError({'code': 'ATTRIBUTE_ERROR', 'message': '서비스를 찾을 수 없음'}, status_code=500)
             except KeyError as exc1:
-                print("Exception {}".format(exc1))
+                if self.app is not None:
+                    self.app.logger.info("Exception {}".format(exc1))
                 raise InvalidError({'code': 'KEY_ERROR', 'message': '매칭 키를 알 수 없음'}, status_code=500)
             except Exception as e:
-                print("Exception {}".format(e))
+                if self.app is not None:
+                    self.app.logger.info("Exception {}".format(e))
                 raise InvalidError("{'code':'ERROR_UNKNOWN','message':'알 수 없는 에러'}", status_code=500)
 
             return json_res
@@ -42,12 +46,13 @@ class DataParser(object):
     def gqlclient(self, func):
         def decorator(*args, **kwargs):
             try:
-                client = GqlClient("http://192.168.221.1:38080/graphql", self.app)
+                # client = GqlClient("http://192.168.221.1:38080/graphql", self.app)
+                client = GqlClient(QL_URL, self.app)
                 kwargs['client'] = client
                 kwargs['app'] = self.app
                 res = func(*args, **kwargs)
             except Exception as e:
-                logger.info("EXCEPTION : {}".format(e))
+                self.app.logger.info("EXCEPTION : {}".format(e))
             return res
         return decorator
 
@@ -81,13 +86,16 @@ class DataParser(object):
                 json_str = request.get_data(as_text=True)
             req_data = schemas.loads(json_str).data
         except ValueError as exc:
-            print("Exception {}".format(exc))
+            if self.app is not None:
+                self.app.logger.info("Exception {}".format(exc))
             raise InvalidError({'code':'PARAMETER_UNKNOWN','message':'파라미터 오류'},status_code=400)
         except ValidationError as exc:
-            print("Exception {}".format(exc))
+            if self.app is not None:
+                self.app.logger.info("Exception {}".format(exc))
             raise InvalidError({'code':'PARAMETER_MISSING','message':'파라미터 없음'},status_code=400)
         except Exception as e:
-            print("Exception {}".format(e))
+            if self.app is not None:
+                self.app.logger.info("Exception {}".format(e))
             raise InvalidError({'code':'ERROR_UNKNOWN','message':'알 수 없는 에러'},status_code=400)
         return req_data
 

@@ -2,14 +2,16 @@ import logging
 import timpani_filemanager.constants
 import os
 import sys
+import time
+import json
+import requests
+import shutil
 from nameko.rpc import rpc
+from nameko.timer import timer
 
-from timpani_filemanager.configuration.configuration_file_reader import ConfigrationFileReader
-from timpani_filemanager.configuration.config_set import ConfigSetting
-from timpani_filemanager.configuration.register_service import RegisterService
-from timpani_filemanager.transfer import TransferServiceManager
-
-
+from .configuration.configuration_file_reader import ConfigrationFileReader
+from .util.systemutil import Systemutil
+from timpani_apimanager.process.status.delete import DeleteProc
 
 import logging.handlers
 ################################### logger ############################################################################
@@ -23,45 +25,100 @@ stream_hander = logging.StreamHandler()
 logger.addHandler(stream_hander)
 #######################################################################################################################
 
-class ServiceInit(object):
+class RestAppService(object):
 
-    def __init__(self):
-        import timpani_filemanager.constants
-        config = ConfigrationFileReader()
-        config_set = ConfigSetting(config.read_file())
-        config_set.setConfig()
-        self.service_manager_trans = TransferServiceManager(timpani_filemanager.constants.AMQP_CONFIG)
-        service_data = RegisterService(node_uuid=timpani_filemanager.constants.NODE_UUID,
-                                   capability=timpani_filemanager.constants.CAPABILITY,
-                                   ipv4address=timpani_filemanager.constants.SERVICE_IPV4ADDR)
+    systemutil = Systemutil()
+    config = ConfigrationFileReader()
 
-        # get Agent ID
-        res_data = self.service_manager_trans.send(method="registerService", service_name='service_manager' ,msg=service_data.__dict__)
-        if 'agent_id' in res_data.keys():
-            timpani_filemanager.constants.AGENT_ID = res_data.get('agent_id')
-        else:
-            logger.info("GET Agent KEY FAILED")
-            exit()
+    def __init__(self, moduletype):
+        self.nodetype_url = "/v1/app/getbiosconfig"
+        self.addservice_url = "/v1/app/addservice"
+        self.keepalive_url = "/v1/app/keepalive"
+        self.template_init_url = "/v1/bios/init"
+        config = self.config.read_file()
+        self.backup_host = config['GENERAL']['BACKUP_IP']
+        self.backup_webport = config['GENERAL']['WEBPORT']
+        self.node_uuid = None
+        self.amqp_url = None
+        self.nodetype = 'FILEMANAGER'
+        self.prefix = None
+        self.nicname = config['GENERAL']['BACKUP_NIC']
+        self.moduletype = moduletype
+        self.istemplate_init = False
 
-        self.node_uuid = timpani_filemanager.constants.NODE_UUID
-        self.agent_id = timpani_filemanager.constants.AGENT_ID
-        self.address = timpani_filemanager.constants.SERVICE_IPV4ADDR
-        self.base_url = timpani_filemanager.constants.BASE_STORAGE_URI
-        self.service_name = "{}_service_{}".format(timpani_filemanager.constants.CAPABILITY, timpani_filemanager.constants.NODE_UUID)
 
-    def service_send(self, method, msg):
-        ret = self.service_manager_trans.send(method=method, service_name='service_manager', msg=msg)
-        return ret
+    def rest_request(self, url, postdata):
+        issuccess = False
+        resdata = None
+        try:
+            response = requests.post(url, data=json.dumps(postdata), timeout=3)
+            if response.status_code == 200:
+                logger.info("response data : {}".format(response.json()['resultData']))
+                resdata = response.json()['resultData']
+                issuccess = True
+                if 'errorcode' in resdata:
+                    logger.info("Get Nodetype Faild")
+                    issuccess = False
+            else:
+                logger.info("response data : {}".format(response))
+        except Exception as e:
+            logger.info("api gateway connection failed : {}".format(e))
+
+        return issuccess, resdata
+
+    def addservice(self):
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        self.uuid = self.systemutil.getSystemUuid()
+        ipaddress = self.systemutil.getIpAddress(self.nicname)
+        self.pid = self.systemutil.getPid()
+        macaddress = self.systemutil.getMacAddress(self.nicname)
+        postdata = {'node_uuid': self.uuid, 'pid': self.pid, 'nodetype': self.nodetype,
+                    'ipaddress': ipaddress, 'macaddress': macaddress,
+                    'moduletype': self.moduletype}
+        url = home_url + self.addservice_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        if issuccess:
+            self.modulename = resdata.get('modulename')
+        return issuccess
+
+    def keepalive(self):
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        postdata = {'pid': self.pid, 'moduletype': self.moduletype}
+        url = home_url + self.keepalive_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        # if issuccess:
+        #     self.modulename = resdata.get('modulename')
+        return issuccess
+
 
 class FileManager(object):
-    init_data = ServiceInit()
-    name = 'filemanager_service'
+    max_retry = 60
+    init_data = RestAppService(moduletype='filemanager')
+
+    retry_cnt = 0
+    while True:
+        if not init_data.addservice():
+            logger.info("MODULE SERVICE REGITER FAILED")
+        else:
+            break
+        if retry_cnt == max_retry:
+            logger.info("MODULE SERVICE REGITER RETRY FAILED")
+            sys.exit()
+        time.sleep(1)
+        retry_cnt += 1
+
+    name = init_data.modulename
     node_uuid = init_data.node_uuid
-    agent_id = init_data.agent_id
-    ip_address = init_data.address
-    send_service = init_data.service_send
-    backup_base = "{}/backup".format(init_data.base_url)
-    logger.info("name : {}, node_uuid : {}, agent_id : {}".format(__name__, node_uuid, agent_id))
+
+    backup_host = init_data.backup_host
+    logger.debug("name : {}, node_uuid : {}".format(__name__, node_uuid))
+
+    # init_data.template_init()
+
+    @timer(interval=30)
+    def keepalive(self):
+        logger.debug("START KEEPALIVE")
+        self.init_data.keepalive()
 
     @rpc
     def check_directory(self, data):
@@ -111,4 +168,70 @@ class FileManager(object):
                 check_data['is_exist'] = False
 
         return data
+
+
+    def check_dir(self, dir):
+        logger.info("check_dir : {}".format(dir))
+
+        try:
+            return os.path.isdir(dir)
+        except OSError:
+            return False
+
+    def delete_dir(self, dir):
+        if dir.__eq__('/'):
+            logger.info("ROOT DIRECTORY DELETE TRY FAILED")
+            return False
+        shutil.rmtree(dir)
+        return self.check_dir(dir)
+
+    @rpc
+    def deleteproc(self, data):
+        proc = data.get('proc')
+        dellist = data.get('dellist')
+        export_path = data.get('export_path')
+
+        if proc.__eq__(DeleteProc.FILECHECK.value[0]):
+            logger.info("proc : {}".format(proc))
+            for deldata in dellist:
+                check_path = deldata.get('save_path')
+                part_path = deldata.get('part_path')
+                if 'zfs.gz' in check_path:
+                    sp_check_path = check_path.split('/')
+                    snap_del_path = export_path
+                    for cnt in range(1, len(sp_check_path)-1):
+                        snap_del_path += '/' + sp_check_path[cnt]
+                    logger.info('snap_del_path : {}'.format(snap_del_path))
+
+                    deldata['snap_del_path'] = snap_del_path
+                    deldata['issnapdelexist'] = self.check_dir(snap_del_path)
+                else:
+                    deldata['snap_del_path'] = export_path + check_path
+                    deldata['issnapdelexist'] = self.check_dir(check_path)
+                deldata['part_del_path'] = export_path + part_path
+                deldata['ispartdelexist'] = self.check_dir(export_path + part_path)
+
+        elif proc.__eq__(DeleteProc.SNAPDIRDELETE.value[0]):
+            logger.info("proc : {}".format(proc))
+            for deldata in dellist:
+                logger.info('SNAP FILE DELETE DIR : {}'.format(deldata.get('snap_del_path')))
+                logger.info('SNAP DELETE DIR EXIST : {}'.format(deldata.get('issnapdelexist')))
+                del_path = deldata.get('snap_del_path')
+                isdelexist = deldata.get('issnapdelexist')
+                if isdelexist:
+                    self.delete_dir(del_path)
+
+        elif proc.__eq__(DeleteProc.PARTDIRDELETE.value[0]):
+            logger.info("proc : {}".format(proc))
+            for deldata in dellist:
+                logger.info('PART DELETE DIR : {}'.format(deldata.get('part_del_path')))
+                logger.info('PART DELETE DIR EXIST : {}'.format(deldata.get('ispartdelexist')))
+                del_path = deldata.get('part_del_path')
+                isdelexist = deldata.get('ispartdelexist')
+                if isdelexist:
+                    self.delete_dir(del_path)
+
+        return data
+
+
 

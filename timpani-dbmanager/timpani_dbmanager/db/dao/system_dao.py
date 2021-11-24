@@ -826,7 +826,8 @@ class SystemProcessStatusDAO(BaseDAO):
     def start_process(data, database_session):
         obj = SystemProcessStatus()
         field_list = [
-            'node_uuid', 'kind', 'action_kind', 'action_message', 'action_status'
+            'server_uuid', 'target_uuid', 'nodetype', 'usetype', 'name', 'kind',
+            'action_kind', 'action_message', 'action_status'
         ]
         BaseDAO.set_value(obj, field_list, data)
         BaseDAO.insert(obj, database_session)
@@ -839,6 +840,34 @@ class SystemProcessStatusDAO(BaseDAO):
             filter(SystemProcessStatus.id == data.get('run_uuid')).\
             first()
         return query
+
+    @staticmethod
+    def gethistory(data, database_session):
+        query = database_session.query(SystemProcessStatus.name,
+                                       SystemProcessStatus.nodetype,
+                                       SystemProcessStatus.usetype,
+                                       SystemProcessStatus.target_uuid,
+                                       SystemProcessStatus.action_kind,
+                                       SystemProcessStatus.action_message,
+                                       SystemProcessStatus.action_status,
+                                       SystemProcessStatus.register_dt,
+                                       SystemProcessStatus.update_dt
+                                       )
+        query = query.filter(SystemProcessStatus.kind == data.get('kind'))
+        target_status = ['END', 'ERROR']
+        query = query.filter(SystemProcessStatus.action_status.in_(target_status))
+        if 'namelist' in data:
+            namelist = data.get('namelist')
+            query = query.filter(SystemProcessStatus.name.in_(namelist))
+
+        query = query.order_by(SystemProcessStatus.register_dt.desc()).all()
+        field_list = [
+            'name', 'nodetype', 'usetype', 'uuid', 'kind', 'message',
+            'status', 'startat', 'endat'
+        ]
+        result = BaseDAO.return_data(query=query, field_list=field_list)
+
+        return result
 
     @staticmethod
     def update_process(data, database_session):
@@ -872,7 +901,9 @@ class SystemProcessStatusHistDAO(BaseDAO):
     def register_process_hist(data, database_session):
         obj = SystemProcessStatusHist()
         field_list = [
-            'node_uuid', 'kind', 'action_kind', 'action_message', 'action_status'
+            'run_uuid',
+            'server_uuid', 'target_uuid', 'nodetype', 'usetype', 'name', 'kind',
+            'action_kind', 'action_message', 'action_status'
         ]
         BaseDAO.set_value(obj, field_list, data)
         BaseDAO.insert(obj, database_session)
@@ -882,30 +913,34 @@ class SystemProcessStatusHistDAO(BaseDAO):
     @staticmethod
     def get_process_hist(data, database_session):
         empty_value = '-'
-        query = database_session.query( SystemProcessStatusHist.node_uuid,
-                                        SystemProcessStatusHist.kind,
+        query = database_session.query( SystemProcessStatusHist.name,
+                                        SystemProcessStatusHist.nodetype,
+                                        SystemProcessStatusHist.usetype,
                                         SystemProcessStatusHist.action_kind,
                                         SystemProcessStatusHist.action_status,
                                         SystemProcessStatusHist.action_message,
                                         SystemProcessStatusHist.register_dt
                                        )
-        if 'node_uuid' in data:
-            if data.get('node_uuid') is not None:
-                query = query.filter(func.lower(SystemProcessStatusHist.node_uuid) == data.get('node_uuid').lower())
+        if 'run_uuid' in data:
+            if data.get('run_uuid') is not None:
+                query = query.filter(func.lower(SystemProcessStatusHist.run_uuid) == data.get('run_uuid').lower())
 
-        if 'target_type_list' in data:
-            target_type_in = data.get('target_type_list')
-            if isinstance(target_type_in, list):
-                query = query.filter(SystemProcessStatusHist.kind.in_(target_type_in))
+        if 'kind' in data:
+            if data.get('kind') is not None:
+                query = query.filter(SystemProcessStatusHist.kind == data.get('kind'))
+
+        if 'namelist' in data:
+            namelist = data.get('namelist')
+            query = query.filter(SystemProcessStatusHist.name.in_(namelist))
 
         if 'limit' in data:
             limit_cnt = int(data.get('limit'))
             if limit_cnt > 0:
                 query = query.limit(limit_cnt)
 
-        query = query.order_by(SystemProcessStatusHist.register_dt).all()
+        query = query.order_by(SystemProcessStatusHist.register_dt.desc()).all()
         field_list = [
-            'node_uuid', 'kind', 'action_kind', 'action_status', 'action_message', 'register_dt'
+            'name', 'nodetype', 'usetype', 'action_kind', 'action_status', 'action_message', 'register_dt'
         ]
         result = BaseDAO.return_data(query=query, field_list=field_list)
 
@@ -913,6 +948,33 @@ class SystemProcessStatusHistDAO(BaseDAO):
             res_raw['err_code'] = '-'
             res_raw['err_message'] = '-'
 
+        return result
+
+    @staticmethod
+    def getrealhist(data, database_session):
+        empty_value = '-'
+        query = database_session.query(SystemProcessStatusHist.name,
+                                       SystemProcessStatusHist.nodetype,
+                                       SystemProcessStatusHist.usetype,
+                                       SystemProcessStatusHist.action_kind,
+                                       SystemProcessStatusHist.action_status,
+                                       SystemProcessStatusHist.action_message,
+                                       SystemProcessStatusHist.register_dt
+                                       )
+        if 'run_uuid' in data:
+            if data.get('run_uuid') is not None:
+                query = query.filter(SystemProcessStatusHist.run_uuid == data.get('run_uuid'))
+
+        logger.info("RUN_UUID : {}".format(data.get('run_uuid')))
+        query = query.order_by(SystemProcessStatusHist.register_dt.desc()).all()
+        field_list = [
+            'name', 'nodetype', 'usetype', 'kind', 'status', 'message', 'start'
+        ]
+        result = BaseDAO.return_data(query=query, field_list=field_list)
+
+        for res_raw in result:
+            res_raw['err_code'] = '-'
+            res_raw['err_message'] = '-'
 
         return result
 
@@ -933,7 +995,9 @@ class SystemProcessStatusErrHistDAO(BaseDAO):
     def register_process_hist_err(data, database_session):
         obj = SystemProcessStatusErrHist()
         field_list = [
-            'node_uuid', 'kind', 'action_kind', 'action_message', 'action_status', 'err_code',
+            'run_uuid',
+            'server_uuid', 'target_uuid', 'nodetype', 'usetype', 'name', 'kind',
+            'action_kind', 'action_message', 'action_status', 'err_code',
             'err_message'
         ]
         BaseDAO.set_value(obj, field_list, data)
@@ -943,8 +1007,9 @@ class SystemProcessStatusErrHistDAO(BaseDAO):
 
     @staticmethod
     def get_process_hist_err(data, database_session):
-        query = database_session.query(SystemProcessStatusErrHist.node_uuid,
-                                       SystemProcessStatusErrHist.kind,
+        query = database_session.query(SystemProcessStatusErrHist.name,
+                                       SystemProcessStatusErrHist.nodetype,
+                                       SystemProcessStatusErrHist.usetype,
                                        SystemProcessStatusErrHist.action_kind,
                                        SystemProcessStatusErrHist.action_status,
                                        SystemProcessStatusErrHist.action_message,
@@ -953,20 +1018,56 @@ class SystemProcessStatusErrHistDAO(BaseDAO):
                                        SystemProcessStatusErrHist.register_dt
                                        )
 
-        if 'node_uuid' in data:
-            if data.get('node_uuid') is not None:
-                query = query.filter(SystemProcessStatusErrHist.node_uuid == data.get('node_uuid'))
+        if 'run_uuid' in data:
+            if data.get('run_uuid') is not None:
+                query = query.filter(SystemProcessStatusErrHist.run_uuid == data.get('run_uuid'))
+
+        if 'kind' in data:
+            if data.get('kind') is not None:
+                query = query.filter(SystemProcessStatusErrHist.kind == data.get('kind'))
+
+        if 'namelist' in data:
+            namelist = data.get('namelist')
+            query = query.filter(SystemProcessStatusErrHist.name.in_(namelist))
 
         if 'limit' in data:
             limit_cnt = int(data.get('limit'))
             if limit_cnt > 0:
                 query = query.limit(limit_cnt)
 
-        query = query.order_by(SystemProcessStatusErrHist.register_dt).all()
+        query = query.order_by(SystemProcessStatusErrHist.register_dt.desc()).all()
 
         field_list = [
-            'node_uuid', 'kind', 'action_kind', 'action_status', 'action_message',
+            'name', 'nodetype', 'usetype', 'action_kind', 'action_status', 'action_message',
             'err_code', 'err_message', 'register_dt'
+        ]
+
+        res = BaseDAO.return_data(query=query, field_list=field_list)
+
+        return res
+
+    @staticmethod
+    def getrealhist(data, database_session):
+        query = database_session.query(SystemProcessStatusErrHist.name,
+                                       SystemProcessStatusErrHist.nodetype,
+                                       SystemProcessStatusErrHist.usetype,
+                                       SystemProcessStatusErrHist.action_kind,
+                                       SystemProcessStatusErrHist.action_status,
+                                       SystemProcessStatusErrHist.action_message,
+                                       SystemProcessStatusErrHist.err_code,
+                                       SystemProcessStatusErrHist.err_message,
+                                       SystemProcessStatusErrHist.register_dt
+                                       )
+
+        if 'run_uuid' in data:
+            if data.get('run_uuid') is not None:
+                query = query.filter(SystemProcessStatusErrHist.run_uuid == data.get('run_uuid'))
+
+        query = query.order_by(SystemProcessStatusErrHist.register_dt.desc()).all()
+
+        field_list = [
+            'name', 'nodetype', 'usetype', 'kind', 'status', 'message',
+            'err_code', 'err_message', 'start'
         ]
 
         res = BaseDAO.return_data(query=query, field_list=field_list)

@@ -27,6 +27,10 @@ class NodeField(graphene.ObjectType):
     nodeuuid = graphene.String()
     ipmiinfo = IpmiField()
 
+class ErrorField(graphene.ObjectType):
+    errcode = graphene.String()
+    errmsg = graphene.String()
+
 
 class NodeRequestField(graphene.ObjectType):
     uuid = graphene.String()
@@ -76,9 +80,78 @@ class CheckTokenResponse(graphene.ObjectType):
 
 class LoginResponse(graphene.ObjectType):
     token = graphene.String()
-
+    errors = graphene.Field(ErrorField)
 
 class ValidResponse(graphene.ObjectType):
     isvalid = graphene.Boolean()
+    errors = graphene.Field(ErrorField)
 
+class CmdResponse(graphene.ObjectType):
+    runstatus = graphene.String()
+    runuuid = graphene.String()
+    errors = graphene.Field(ErrorField)
+
+class RealLogData(graphene.ObjectType):
+    nodetype = graphene.String()
+    usetype = graphene.String()
+    name = graphene.String()
+    start = graphene.String()
+    status = graphene.String()
+    kind = graphene.String()
+    message = graphene.String()
+    errmsg = graphene.String()
+    errcode = graphene.String()
+
+
+class RealLogResponse(graphene.ObjectType):
+    proc = graphene.List(RealLogData)
+    errors = graphene.Field(ErrorField)
+
+
+class HistoryData(graphene.ObjectType):
+    nodetype = graphene.String()
+    usetype = graphene.String()
+    uuid = graphene.String()
+    kind = graphene.String()
+    status = graphene.String()
+    startat = graphene.String()
+    endat = graphene.String()
+    name = graphene.String()
+    message = graphene.String()
+
+
+class HistoryResponse(graphene.ObjectType):
+    logs = graphene.List(HistoryData)
+    errors = graphene.Field(ErrorField)
+
+
+class RestoreTargetData(graphene.ObjectType):
+    usetype = graphene.String()
+    nodetype = graphene.String()
+    snapname = graphene.String()
+    snapfilename = graphene.String()
+    target_uuid = graphene.String()
+    name = graphene.String()
+    time = graphene.String()
+    isfull = graphene.Int()
+    islast = graphene.Int()
+    isrollback = graphene.String()
+
+
+class RestoretargetListResponse(graphene.ObjectType):
+    targets = graphene.List(RestoreTargetData)
+    errors = graphene.Field(ErrorField)
+
+
+class BackupTargetData(graphene.ObjectType):
+    uuid = graphene.String()
+    nodetype = graphene.String()
+    name = graphene.String()
+    usetype = graphene.String()
+    backuptype = graphene.String()
+
+
+class BackupTargetResponse(graphene.ObjectType):
+    targets = graphene.List(BackupTargetData)
+    errors = graphene.Field(ErrorField)
 

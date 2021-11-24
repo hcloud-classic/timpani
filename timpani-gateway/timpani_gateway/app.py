@@ -11,6 +11,8 @@ from .rest_api.system import SystemAPI
 from .rest_api.sync import SyncAPI
 from .rest_api.log_helper import LogHelper
 from .rest_api.auth import AuthAPI
+from .rest_api.app import InternalAPI
+from .rest_api.bios import BiosAPI
 
 from .exceptions import InvalidError, InvalidException
 
@@ -39,7 +41,8 @@ def create_app(*config_cls):
 
     for config in config_cls:
         app.config.from_object(config)
-    logger.info("START APPLICATION")
+
+    app.logger.info("START APPLICATION")
     LogHelper(app)
     Schema(app)
     IpmiNode(app)
@@ -51,6 +54,8 @@ def create_app(*config_cls):
     SystemAPI(app)
     AuthAPI(app)
     SyncAPI(app)
+    BiosAPI(app)
+    InternalAPI(app)
 
     return app
 

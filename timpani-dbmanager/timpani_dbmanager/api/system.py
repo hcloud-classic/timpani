@@ -279,7 +279,7 @@ class SystemAPI(object):
     def processhistory(self, data, database_session):
         logger.info('processhistory {}'.format(data))
         res_data = {}
-        node_uuid = data.get('node_uuid')
+        # node_uuid = data.get('node_uuid')
         run_status = data.get('action_status')
 
         if run_status.__eq__('START'):
@@ -303,6 +303,24 @@ class SystemAPI(object):
         dao.system_dao.SystemProcessStatusHistDAO.register_process_hist(data, database_session=database_session)
 
         return {'run_uuid': run_uuid}
+
+    @BaseDAO.database_operation
+    def getprocesshistory(self, data, database_session):
+        logger.info('getprocesshistory {}'.format(data))
+        res = dao.system_dao.SystemProcessStatusDAO.gethistory(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def getreallog(self, data, database_session):
+        logger.info('getreallog {}'.format(data))
+        res = dao.system_dao.SystemProcessStatusHistDAO.getrealhist(data, database_session)
+        if res is None:
+            res = []
+
+        res_error = dao.system_dao.SystemProcessStatusErrHistDAO.getrealhist(data, database_session)
+        for error_data in res_error:
+            res.append(error_data)
+        return res
 
     @BaseDAO.database_operation
     def checkprocessstatus(self, data, database_session):

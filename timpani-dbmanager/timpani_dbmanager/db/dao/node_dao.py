@@ -17,10 +17,13 @@ class SyncNodeDAO(BaseDAO):
              "ipmi_user_password", "bmc_ip", "bmc_ip_subnet_mask", "bmc_mac_addr", "pxe_mac_addr",
              "created_at"]
 
+    INFO_SERVER_UUID = ["node_name", "uuid", "group_id"]
+
     @staticmethod
     def SyncNodeUpdate(obj, data, database_session):
         field_list = SyncNodeDAO.FIELD
-
+        uuid = data.get('uuid').replace('-', '').upper()
+        data['uuid'] = uuid
         if obj is None:
             # insert
             obj = SyncNode()
@@ -34,8 +37,9 @@ class SyncNodeDAO(BaseDAO):
         return obj.id
 
     @staticmethod
-    def getobj_nodeuuid(uuid, database_session):
-        obj = database_session.query(SyncNode).filter(SyncNode.uuid == uuid).first()
+    def getobj_nodeuuid(uuid, server_uuid, database_session):
+        obj = database_session.query(SyncNode).filter(SyncNode.uuid == uuid)
+        obj = obj.filter(SyncNode.server_uuid == server_uuid).first()
         if obj is None:
             return None
         return obj
@@ -44,6 +48,45 @@ class SyncNodeDAO(BaseDAO):
     def getobjlist_syncnode(database_session):
         objlist = database_session.query(SyncNode).all()
         return objlist
+
+    @staticmethod
+    def getnodelist(database_session):
+        FIELD = ["uuid", "server_uuid", "node_name", "group_id", "group_name", "ipmi_user_id",
+                 "ipmi_user_password", "bmc_ip", "bmc_ip_subnet_mask", "bmc_mac_addr", "pxe_mac_addr"]
+        query = database_session.query(SyncNode.uuid, SyncNode.server_uuid, SyncNode.node_name,
+                                     SyncNode.group_id, SyncNode.group_name, SyncNode.ipmi_user_id,
+                                     SyncNode.ipmi_user_password, SyncNode.bmc_ip,
+                                     SyncNode.bmc_ip_subnet_mask, SyncNode.bmc_mac_addr,
+                                     SyncNode.pxe_mac_addr).all()
+        if query is not None:
+            res = BaseDAO.return_data(query=query, field_list=FIELD)
+        else:
+            return []
+        return res
+
+    @staticmethod
+    def getnodetype(data, database_session):
+        INFO_FILED = ['nodetype', 'uuid']
+        if 'node_uuid' in data:
+            uuid = data.get('node_uuid').replace('-', '').upper()
+        else:
+            uuid = data.get('uuid').replace('-', '').upper()
+        isFind = False
+        query = database_session.query(SyncNode.node_name, SyncNode.uuid).all()
+        if query is not None:
+            res = BaseDAO.return_data(query=query, field_list=INFO_FILED)
+            for comparedata in res:
+                compare_uuid = comparedata.get('uuid')
+                if compare_uuid is not None:
+                    if compare_uuid.replace('-','').upper().__eq__(uuid):
+                        res = {'nodetype':comparedata.get('nodetype')}
+                        isFind = True
+                        break
+            if not isFind:
+                return {'nodetype': None}
+            return res
+        else:
+            return {'nodetype': None}
 
     @staticmethod
     def SyncNodeDel(obj, database_session):
@@ -71,8 +114,11 @@ class SyncVolumeDAO(BaseDAO):
         return obj.id
 
     @staticmethod
-    def getobj_volumeuuid(uuid, database_session):
-        obj = database_session.query(SyncVolume).filter(SyncVolume.uuid == uuid).first()
+    def getobj_volumeuuid(uuid, server_uuid, user_uuid, database_session):
+        obj = database_session.query(SyncVolume).filter(SyncVolume.uuid == uuid)
+        obj = obj.filter(SyncVolume.server_uuid == server_uuid)
+        obj = obj.filter(SyncVolume.user_uuid == user_uuid)
+        obj = obj.first()
         if obj is None:
             return None
         return obj
@@ -81,6 +127,22 @@ class SyncVolumeDAO(BaseDAO):
     def getobjlist_syncvolume(database_session):
         objlist = database_session.query(SyncVolume).all()
         return objlist
+
+    @staticmethod
+    def getvolumelist(database_session):
+
+        query = database_session.query(SyncVolume.uuid,
+                                       SyncVolume.name,
+                                       SyncVolume.server_uuid,
+                                       SyncVolume.user_uuid,
+                                       SyncVolume.group_id,
+                                       SyncVolume.use_type,
+                                       SyncVolume.size).all()
+        if query is not None:
+            res = BaseDAO.return_data(query=query, field_list=SyncVolumeDAO.FIELD)
+        else:
+            return []
+        return res
 
     @staticmethod
     def SyncVolumeDel(obj, database_session):

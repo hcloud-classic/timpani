@@ -219,10 +219,15 @@ class SystemHist(Base):
 class SystemProcessStatus(Base):
 
     __tablename__ = "tb_system_process_status"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(String(64), primary_key=True, default=generate_uuid, nullable=False)
-    node_uuid = Column(String(64), nullable=False)
-    kind = Column(String(32), nullable=False)
+    server_uuid = Column(String(64), nullable=True)
+    target_uuid = Column(String(64), nullable=True)
+    nodetype = Column(String(32), nullable=True)
+    usetype = Column(String(32), nullable=True)
+    name = Column(String(512), nullable=True)
+    kind = Column(String(32), nullable=True)
     action_kind = Column(String(32), nullable=False)
     action_message = Column(String(256), nullable=False)
     action_status = Column(String(32), nullable=False)
@@ -233,10 +238,16 @@ class SystemProcessStatus(Base):
 class SystemProcessStatusHist(Base):
 
     __tablename__ = "tb_system_process_status_hist"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, nullable=False)
-    node_uuid = Column(String(64), nullable=False)
-    kind = Column(String(32), nullable=False)
+    run_uuid = Column(String(64), nullable=True)
+    server_uuid = Column(String(64), nullable=True)
+    target_uuid = Column(String(64), nullable=True)
+    nodetype = Column(String(32), nullable=True)
+    usetype = Column(String(32), nullable=True)
+    name = Column(String(512), nullable=True)
+    kind = Column(String(32), nullable=True)
     action_kind = Column(String(32), nullable=False)
     action_message = Column(String(256), nullable=False)
     action_status = Column(String(32), nullable=False)
@@ -245,10 +256,16 @@ class SystemProcessStatusHist(Base):
 class SystemProcessStatusErrHist(Base):
 
     __tablename__ = "tb_system_process_status_err_hist"
+    __table_args__ = {'extend_existing': True}
 
     id = Column(Integer, primary_key=True, nullable=False)
-    node_uuid = Column(String(64), nullable=False)
-    kind = Column(String(32), nullable=False)
+    run_uuid = Column(String(64), nullable=True)
+    server_uuid = Column(String(64), nullable=True)
+    target_uuid = Column(String(64), nullable=True)
+    nodetype = Column(String(32), nullable=True)
+    usetype = Column(String(32), nullable=True)
+    name = Column(String(512), nullable=True)
+    kind = Column(String(32), nullable=True)
     action_kind = Column(String(32), nullable=False)
     action_message = Column(String(256), nullable=False)
     action_status = Column(String(32), nullable=False)

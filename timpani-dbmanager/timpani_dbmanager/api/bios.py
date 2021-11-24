@@ -108,3 +108,99 @@ class BiosAPI(object):
         else:
             return {'result':'1', 'resultmsg':'Data deletion complete'}
 
+    @BaseDAO.database_operation
+    def setbiosavail(self, datalist, database_session):
+        logger.info('setbiosavail {}'.format(datalist))
+        for data in datalist:
+            res = dao.bios_dao.BiosRedfishAvailDAO.setdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def getbiosavail(self, data, database_session):
+        logger.info('getbiosavail {}'.format(data))
+        res = dao.bios_dao.BiosRedfishAvailDAO.getdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def setbiosmatch(self, datalist, database_session):
+        logger.info('setbiosmatch {}'.format(datalist))
+        for data in datalist:
+            res = dao.bios_dao.BiosRedfishMatchDAO.setdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def getbiosmatch(self, data, database_session):
+        logger.info('getbiosmatch {}'.format(data))
+        res = dao.bios_dao.BiosRedfishMatchDAO.getdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def setbiostemplate(self, datalist, database_session):
+        logger.info('setbiostemplate {}'.format(datalist))
+        for data in datalist:
+            res = dao.bios_dao.BiosTemplateDAO.setdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def getbiostemplate(self, data, database_session):
+        logger.info('getbiostemplate {}'.format(data))
+        res = dao.bios_dao.BiosTemplateDAO.getdata(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def gettemplatelist(self, data, database_session):
+        logger.info('gettemplatelist {}'.format(data))
+        res = dao.bios_dao.BiosTemplateDAO.gettemplatelist(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def setbiosdata(self, data, database_session):
+        logger.info('setbiosdata {}'.format(data))
+        biosdata = data.get('biosdata')
+        backupdata = biosdata.get('backupdata')
+        syscfgdatalist = biosdata.get('biosconfig')
+        template = biosdata.get('template')
+
+        syscfg_sub_id = dao.bios_dao.BiosCurBiosconfigDAO.getsubid(data, database_session)
+
+        if syscfg_sub_id is None:
+            syscfg_sub_id = 1
+        else:
+            syscfg_sub_id += 1
+
+        for syscfgdata in syscfgdatalist:
+            syscfgdata['sub_id'] = syscfg_sub_id
+            dao.bios_dao.BiosCurBiosconfigDAO.setdata(syscfgdata, database_session)
+
+        dao.bios_dao.BiosCurTemplateDAO.deldata(data.get('macaddr'), database_session)
+        for templatedata in template:
+            dao.bios_dao.BiosCurTemplateDAO.setdata(templatedata, database_session)
+        backupdata['syscfg_sub_id'] = syscfg_sub_id
+        dao.bios_dao.BiosBackupDAO.setdata(backupdata, database_session)
+
+    @BaseDAO.database_operation
+    def getbiosconfig(self, data, database_session):
+        res = dao.bios_dao.BiosBackupDAO.getbiosconfig(data, database_session)
+        return res
+
+    @BaseDAO.database_operation
+    def getcurtemplate(self, data, database_session):
+        for data_part in data:
+            res = dao.bios_dao.BiosCurTemplateDAO.getdata(data_part, database_session)
+            data_part['templatedata'] = res
+        return data
+
+    @BaseDAO.database_operation
+    def getsyscfgdumplist(self, data, database_session):
+        for data_part in data:
+            res = dao.bios_dao.BiosBackupDAO.getdata(data_part, database_session)
+            data_part['dumplist'] = res
+        return data
+
+    @BaseDAO.database_operation
+    def getsyscfgdumpdata(self, data, database_session):
+        res = dao.bios_dao.BiosCurBiosconfigDAO.getdata(data, database_session)
+        return res
+
+
+

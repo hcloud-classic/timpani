@@ -1,78 +1,25 @@
-# import logging
-# from .bios_pb2 import ActionResponse, ResgisterResponse
-# from .bios_pb2_grpc import BiosServiceStub
-#
-# from timpani_framework.grpc.entrypoint import Grpc
-# from google.protobuf import json_format
-# import json
-#
-# from .syscfg.biosconfig import BiosConfig
-# from .trans import dbmanagerClient
-#
-# import logging.handlers
-# logger = logging.getLogger(__name__)
-# logger.setLevel(level=logging.DEBUG)
-# formatter = logging.Formatter('[%(asctime)s.%(msecs)03d][%(levelname)-8s] %(message)s : (%(filename)s:%(lineno)s)', datefmt="%Y-%m-%d %H:%M:%S")
-# fileHandler = logging.handlers.TimedRotatingFileHandler(filename='./log_webmanager.log', when='midnight', backupCount=0, interval=1, encoding='utf-8')
-# fileHandler.setFormatter(formatter)
-# logger.addHandler(fileHandler)
-#
-# grpc = Grpc.implementing(BiosServiceStub)
-#
-#
-#
-# # ActionRequest
-# # int32 action = 1;
-# # int32 msgid = 2;
-# # string method = 3;
-# # google.protobuf.Struct message = 4;
-#
-# class BiosService:
-#     name = 'apimanager_service'
-#     print("==================")
-#     try:
-#         logger.info("[INIT] Send BIOS Configuration Info")
-#         bios = BiosConfig()
-#         bios_config_info = bios.read_syscfg("test_syscfg.INI")
-#         logger.info(bios_config_info)
-#         client = dbmanagerClient()
-#         response = client.set_syscfg_info(action=1,msg=bios_config_info)
-#     except Exception as exec:
-#         logger.info("[ERROR] Init Failed : {}".format(str(exec)))
-#         exit()
-#
-#
-#
-#     @grpc
-#     def action(self, request, context):
-#         print('request : {}'.format(request))
-#         print('action : {}'.format(request.action))
-#         print('msgid : {}'.format(request.msgid))
-#         print('method : {}'.format(request.method))
-#         print('msg : {}'.format(json.loads(request.msg)))
-#         return ActionResponse(
-#             result='success',
-#             msgid=request.msgid,
-#             method=request.method,
-#             msg=request.msg
-#         )
-#
-# from timpani_dbmanager.dbmanager_pb2 import ActionResponse, ActionRequest
-# from timpani_dbmanager.dbmanager_pb2_grpc2 import Db
-# class ClientService:
-#     name = "apimanager_client"
-#
-#     grpc_client = GrpcProxy("//127.0.0.1", )
-
 import logging
+import time
+import requests
+import json
+import sys
 import timpani_bios.constants
 from nameko.rpc import rpc
+from nameko.timer import timer
+
+from timpani_apimanager.process.status.bios import BiosProc
 
 from timpani_bios.configuration.configuration_file_reader import ConfigrationFileReader
 from timpani_bios.configuration.config_set import ConfigSetting
 from timpani_bios.configuration.register_service import RegisterService
 from timpani_bios.transfer import TransferServiceManager
+from .util.systemutil import Systemutil
 from .syscfg.biosconfig import BiosConfig
+from .setting.templeate import Template
+from .model.proc import ProcModel
+from .util.sdptool import SDPTool
+from .util.ipmitool import IpmiTool
+from .transfer import TransferServiceManager
 
 
 import logging.handlers
@@ -85,82 +32,299 @@ fileHandler.setFormatter(formatter)
 logger.addHandler(fileHandler)
 stream_hander = logging.StreamHandler()
 logger.addHandler(stream_hander)
-#######################################################################################################################
 
-# class Threading_Schedule(object):
-#     name="threading_schedule"
-#
-#     def __init__(self, check_func, run_func, check_max_count=5):
-#         self.dic_data = copy.deepcopy(dic_data)
-#         self.check_func = check_func
-#         self.run_func = run_func
-#         self.check_max_count = check_max_count
-#         self.check_cnt = 0
-#
-#     def run(self):
-#         logger.info('th_waitcheck running ..... ')
-#         res = self.check_func(self.dic_data)
-#         if 'result' in res:
-#             if res['result'].__eq__('Y'):
-#                 if self.check_cnt < self.check_max_count:
-#                     self.check_cnt += 1
-#                     threading.Timer(30,self.run).start()
-#                 else:
-#                     self.run_func(self.dic_data)
+class RestAppService(object):
+
+    systemutil = Systemutil()
+    config = ConfigrationFileReader()
+
+    def __init__(self, moduletype):
+        self.nodetype_url = "/v1/app/getbiosconfig"
+        self.addservice_url = "/v1/app/addservice"
+        self.keepalive_url = "/v1/app/keepalive"
+        self.template_init_url = "/v1/bios/init"
+        config = self.config.read_file()
+        self.backup_host = config['GENERAL']['BACKUP_IP']
+        self.backup_webport = config['GENERAL']['WEBPORT']
+        self.node_uuid = None
+        self.amqp_url = None
+        self.nodetype = 'IPMI'
+        self.prefix = None
+        self.nicname = None
+        self.moduletype = moduletype
+        self.istemplate_init = False
 
 
-class ServiceInit(object):
+    def rest_request(self, url, postdata):
+        issuccess = False
+        resdata = None
+        try:
+            response = requests.post(url, data=json.dumps(postdata), timeout=3)
+            if response.status_code == 200:
+                logger.info("response data : {}".format(response.json()['resultData']))
+                resdata = response.json()['resultData']
+                issuccess = True
+                if 'errorcode' in resdata:
+                    logger.info("Get Nodetype Faild")
+                    issuccess = False
+            else:
+                logger.info("response data : {}".format(response))
+        except Exception as e:
+            logger.info("api gateway connection failed : {}".format(e))
 
-    def __init__(self):
-        import timpani_bios.constants
-        config = ConfigrationFileReader()
-        config_set = ConfigSetting(config.read_file())
-        config_set.setConfig()
-        self.service_manager_trans = TransferServiceManager(timpani_bios.constants.AMQP_CONFIG)
-        service_data = RegisterService(node_uuid=timpani_bios.constants.NODE_UUID,
-                                   capability=timpani_bios.constants.CAPABILITY,
-                                   ipv4address=timpani_bios.constants.SERVICE_IPV4ADDR)
+        return issuccess, resdata
 
-        # get Agent ID
-        res_data = self.service_manager_trans.send(method="registerService", service_name='service_manager', msg=service_data.__dict__)
-        if 'agent_id' in res_data.keys():
-            timpani_bios.constants.AGENT_ID = res_data.get('agent_id')
-        else:
-            logger.info("GET Agent KEY FAILED")
-            exit()
+    def getnodetype(self):
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        self.uuid = self.systemutil.getSystemUuid()
+        postdata = {'node_uuid': self.uuid}
+        url = home_url + self.nodetype_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        if issuccess:
+            self.nodetype = resdata.get('nodetype')
+            self.prefix = resdata.get('configdata').get('prefix')
+            self.nicname = resdata.get('configdata').get('nicname')
+            config_data_rabbit_id = resdata.get('configdata').get('rabbit_id')
+            config_data_rabbit_pass = resdata.get('configdata').get('rabbit_pass')
+            config_data_rabbit_port = resdata.get('configdata').get('rabbit_port')
+            self.amqp_url = "amqp://{id}:{passwd}@{host}:{port}".\
+                format(id=config_data_rabbit_id, passwd=config_data_rabbit_pass,
+                       host=self.backup_host, port=config_data_rabbit_port)
+            timpani_bios.constants.AMQP_CONFIG = {}
+            timpani_bios.constants.AMQP_CONFIG['AMQP_URI'] = self.amqp_url
+        return issuccess
 
-        self.node_uuid = timpani_bios.constants.NODE_UUID
-        self.agent_id = timpani_bios.constants.AGENT_ID
-        self.default_syscfg_path = timpani_bios.constants.DEFAULT_BIOS_SYSCFG
-        self.service_name = "{}_service_{}".format(timpani_bios.constants.CAPABILITY, timpani_bios.constants.NODE_UUID)
+    def addservice(self):
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        ipaddress = self.systemutil.getIpAddress(self.nicname)
+        self.pid = self.systemutil.getPid()
+        macaddress = self.systemutil.getMacAddress(self.nicname)
+        postdata = {'node_uuid': self.uuid, 'pid': self.pid, 'nodetype': self.nodetype,
+                    'ipaddress': ipaddress, 'macaddress': macaddress,
+                    'moduletype': self.moduletype}
+        url = home_url + self.addservice_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        if issuccess:
+            self.modulename = resdata.get('modulename')
+        return issuccess
 
-    def service_send(self, method, msg):
-        ret = self.service_manager_trans.send(method=method, service_name='service_manager', msg=msg)
-        return ret
+    def keepalive(self):
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        postdata = {'pid': self.pid, 'moduletype': self.moduletype}
+        url = home_url + self.keepalive_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        # if issuccess:
+        #     self.modulename = resdata.get('modulename')
+        return issuccess
+
+    def templateinit(self, postdata):
+        if self.istemplate_init:
+            return True
+
+        home_url = "http://{host}:{port}".format(host=self.backup_host, port=self.backup_webport)
+        url = home_url + self.template_init_url
+        issuccess, resdata = self.rest_request(url, postdata)
+        if issuccess:
+            self.istemplate_init = True
+        #     self.modulename = resdata.get('modulename')
+        return issuccess
+
+    def template_init(self):
+
+        if self.istemplate_init:
+            return True
+        # Template Init
+        template_class = Template()
+        template_ini_home = '/etc/timpani/bios'
+
+        # read templeate
+        template = template_class.read(template_ini_home + '/bios_template.ini')
+        template_val = template_class.read_definevalue(template_ini_home + '/bios_template_value.ini')
+        match_data = template_class.read_match(template_ini_home + '/bios_match_key.ini')
+        template_data = template_class.template_setting_data(template, template_val)
+        postdata = {'avail_data': template_val, 'match_data': match_data, 'template_data': template_data}
+        logger.info("template_init post_data : \n{}".format(postdata))
+        self.templateinit(postdata)
+
 
 class BiosService(object):
-    
-    init_data = ServiceInit()
-    name = init_data.service_name
+    max_retry = 60
+    init_data = RestAppService(moduletype='bios')
+    retry_cnt = 0
+    while True:
+        if not init_data.getnodetype():
+            logger.info("MODULE SERVICE REGITER FAILED")
+        else:
+            break
+
+        if retry_cnt == max_retry:
+            logger.info("MODULE SERVICE REGITER RETRY FAILED")
+            sys.exit()
+        time.sleep(1)
+        retry_cnt += 1
+
+    retry_cnt = 0
+    while True:
+        if not init_data.addservice():
+            logger.info("MODULE SERVICE REGITER FAILED")
+        else:
+            break
+        if retry_cnt == max_retry:
+            logger.info("MODULE SERVICE REGITER RETRY FAILED")
+            sys.exit()
+        time.sleep(1)
+        retry_cnt += 1
+
+    name = init_data.modulename
     node_uuid = init_data.node_uuid
-    agent_id = init_data.agent_id
-    syscfg_path = init_data.default_syscfg_path
-    service_send = init_data.service_send
 
-    logger.info("name : {}, node_uuid : {}, agent_id : {}".format(__name__, node_uuid, agent_id))
+    backup_host = init_data.backup_host
+    amqp_url = init_data.amqp_url
+    logger.debug("name : {}, node_uuid : {}".format(__name__, node_uuid))
 
-    # Schedule Setting
+    trans = TransferServiceManager()
+    # init_data.template_init()
 
-    # Update Bios Data
-    print("[INIT] Send BIOS Configuration Info")
-    bios = BiosConfig()
-    bios_config_info = bios.read_syscfg(syscfg_path)
-    bios_data = {'node_uuid' : node_uuid, 'agent_id' : agent_id, 'bios_config' : bios_config_info}
-    # logger.info("syscfg_config : {}".format(bios_config_info))
-    service_send(method="registerBiosInfo", msg=bios_data)
+    @timer(interval=30)
+    def keepalive(self):
+        logger.debug("START KEEPALIVE")
+        self.init_data.keepalive()
+        time.sleep(1)
+        self.init_data.template_init()
+        res = self.trans.api_send('sensorcollect', msg=None)
 
 
+    @rpc
+    def template_init(self, data):
+        # Template Init
+        template_class = Template()
+        template_ini_home = '/etc/timpani/bios'
+
+        # read templeate
+        template = template_class.read(template_ini_home + '/bios_template.ini')
+        template_val = template_class.read_definevalue(template_ini_home + '/bios_template_value.ini')
+        match_data = template_class.read_match(template_ini_home + '/bios_match_key.ini')
+        template_data = template_class.template_setting_data(template, template_val)
+        return {'avail_data': template_val, 'match_data': match_data, 'template_data': template_data}
 
     @rpc
     def test(self,data):
         return data
+
+    def sensor(self, host, user, passwd, macaddr, target_uuid):
+        ipmitool = IpmiTool()
+        sdptool = SDPTool()
+        keylist = ['sensor_name', 'sensor_value', 'sensor_units', 'sensor_state',
+                   'sensor_lo_norec', 'senor_lo_crit', 'sensor_lo_nocrit',
+                   'senosr_up_nocrit', 'sensor_up_crit', 'sensor_up_norec']
+
+        output = ipmitool.sensor(host=host, user=user, passwd=passwd)
+        lines = output.split('\n')
+        sensordatalist = []
+        for line in lines:
+            isparse = True
+            if 'discrete' in line:
+                isparse = False
+
+            if isparse:
+                values = line.split('|')
+                cnt = 0
+                sensordata = {}
+                for v in values:
+                    if 'na' in v:
+                        val = None
+                    else:
+                        val = v.replace('\t', '').strip()
+                    k_cnt = 0
+                    for k in keylist:
+                        if k_cnt == cnt:
+                            if k.__eq__('sensor_value'):
+                                if val is None:
+                                    sensordata[k] = 0.0
+                                else:
+                                    sensordata[k] = float(val)
+                            else:
+                                sensordata[k] = val
+                            break
+                        k_cnt += 1
+                    cnt += 1
+                sensordatalist.append(sensordata)
+
+        output = sdptool.sensor(host=host, user=user, passwd=passwd)
+        lines = output.split('\n')
+        for line in lines:
+            values = line.split(' ')
+            sensordata = {}
+            cnt = 0
+            k_cnt = 0
+            for k in keylist:
+                v_cnt = 0
+                v_val = None
+                for v in values:
+                    if k_cnt == v_cnt:
+                        if k_cnt == 0:
+                            v_val = "Power " + v
+                        else:
+                            v_val = v
+                    v_cnt += 1
+                sensordata[k] = v_val
+                k_cnt += 1
+            if len(values) > 1:
+                sensordatalist.append(sensordata)
+
+        for target in sensordatalist:
+            target['macaddr'] = macaddr
+            target['addr'] = host
+            target['node_name'] = target_uuid
+
+        return sensordatalist
+
+    @rpc
+    def getsensor(self, data):
+        logger.info("===================== [getsensor] =========================")
+        ipmilist = data.get('ipmilist')
+        sensordatalist = []
+        for ipmidata in ipmilist:
+            user = ipmidata.get('user')
+            passwd = ipmidata.get('passwd')
+            host = ipmidata.get('ip')
+            macaddr = ipmidata.get('macaddr')
+            target_uuid = ipmidata.get('target_uuid')
+            sensordata = self.sensor(host=host, user=user, passwd=passwd, macaddr=macaddr, target_uuid=target_uuid)
+            sensordatalist.append(sensordata)
+        data['sensordatalist'] = sensordatalist
+
+        return data
+
+    @rpc
+    def biosproc(self, data):
+        proc = data.get('proc')
+
+        if proc.__eq__(BiosProc.IPMICHECK.value[0]):
+            data = ProcModel.ipmicheck(data)
+            data = ProcModel.getsysteminfo(data)
+        elif proc.__eq__(BiosProc.TEMPLATEDEPLOY.value[0]):
+            data = ProcModel.templatedeploy(data)
+        elif proc.__eq__(BiosProc.IPMIPOWERON.value[0]):
+            data = ProcModel.ipmipoweron(data)
+        elif proc.__eq__(BiosProc.IPMIPOWERSTATUS.value[0]):
+            data = ProcModel.ipmipowerstatus(data)
+        elif proc.__eq__(BiosProc.SYSCFGPATCH.value[0]):
+            data = ProcModel.syscfgpatch(data)
+        elif proc.__eq__(BiosProc.SYSCFGDUMP.value[0]):
+            data = ProcModel.syscfgdump(data)
+        elif proc.__eq__(BiosProc.SYSCFGBACKUP.value[0]):
+            data = ProcModel.syscfgbackup(data)
+        elif proc.__eq__(BiosProc.REQISCSIOFF.value[0]):
+            data = ProcModel.reqiscsioff(data)
+        elif proc.__eq__(BiosProc.CHECKBIOSVALUE.value[0]):
+            data = ProcModel.checkbiosvalue(data)
+        elif proc.__eq__(BiosProc.BIOSDATACOLLECT.value[0]):
+            data = ProcModel.biosdatacollect(data)
+        elif proc.__eq__(BiosProc.NFSMOUNT.value[0]):
+            data = ProcModel.nfsmount(data)
+        elif proc.__eq__(BiosProc.NFSUNMOUNT.value[0]):
+            data = ProcModel.nfsunmount(data)
+
+        return data
+

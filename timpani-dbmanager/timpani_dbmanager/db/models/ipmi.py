@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Column, Integer, String, DateTime
+from sqlalchemy import Column, Integer, String, DateTime, Float
 from sqlalchemy import ForeignKey
 from sqlalchemy.orm import relationship, backref
 from sqlalchemy.sql import func
@@ -23,10 +23,14 @@ class IpmiConnectInfo(Base):
 
 class IpmiSensor(Base):
     __tablename__ = "tb_ipmi_sensor"
+    __table_args__ = {'extend_existing': True}
 
     id = Column("id", Integer, primary_key=True)
+    addr = Column(String(64))
+    node_name = Column(String(64))
+    macaddr = Column(String(64))
     sensor_name = Column(String(128))
-    sensor_value = Column(String(128))
+    sensor_value = Column(Float)
     sensor_units = Column(String(128))
     sensor_state = Column(String(64))
     # Valid thresholds
@@ -37,6 +41,7 @@ class IpmiSensor(Base):
     sensor_up_crit = Column(String(128))            # Upper Critical
     sensor_up_norec = Column(String(128))           # Upper None-Recoverable
     register_dt = Column(DateTime(timezone=True), default=func.now())
+    time = Column(DateTime(), default=func.now())
 
 class IpmiSdrType(Base):
     __tablename__ = "tb_ipmi_sdrtype"
